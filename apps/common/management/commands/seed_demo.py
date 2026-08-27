@@ -42,15 +42,15 @@ ALL_DEMO_EMAILS = FACILITATOR_EMAILS + SEEKER_EMAILS
 # facilitator_index selects which of the 2 created facilitators owns it.
 EVENT_SPECS = [
     ("Intro to Django REST Framework", "en", "Mumbai", 3, 2, 30, 0),
-    ("Advanced PostgreSQL Indexing", "en", "Pokhara", 10, 3, 20, 1),
-    ("Nepali Sign Language Basics", "ne", "Lalitpur", 15, 2, None, 0),
-    ("Intro to React Hooks", "en", "Kathmandu", -5, 2, 25, 1),
-    ("Data Structures Refresher", "en", "Biratnagar", -20, 3, None, 0),
+    ("Advanced PostgreSQL Indexing", "en", "Bangalore", 10, 3, 20, 1),
+    ("Tamil Conversation Circle", "ta", "Chennai", 15, 2, None, 0),
+    ("Intro to React Hooks", "en", "Pune", -5, 2, 25, 1),
+    ("Data Structures Refresher", "en", "Hyderabad", -20, 3, None, 0),
     ("Hindi Conversation Circle", "hi", "Delhi", 7, 1, 15, 1),
-    ("Concurrency Demo: Almost Full Workshop", "en", "Kathmandu", 5, 2, 10, 0),
-    ("Lifecycle Demo: Weekend Photography Walk", "en", "Pokhara", 8, 4, 12, 1),
-    ("Spanish for Travelers", "es", "Lalitpur", 30, 2, 20, 0),
-    ("Retro: Community Meetup Highlights", "en", "Kathmandu", -45, 2, None, 1),
+    ("Concurrency Demo: Almost Full Workshop", "en", "Kolkata", 5, 2, 10, 0),
+    ("Lifecycle Demo: Weekend Photography Walk", "en", "Jaipur", 8, 4, 12, 1),
+    ("Spanish for Travelers", "es", "Chandigarh", 30, 2, 20, 0),
+    ("Retro: Community Meetup Highlights", "en", "Ahmedabad", -45, 2, None, 1),
 ]
 
 

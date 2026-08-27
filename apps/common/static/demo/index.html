@@ -244,16 +244,6 @@
   #debug::-webkit-scrollbar-track { background: transparent; }
   #debug::-webkit-scrollbar-thumb { background: #2a3352; border-radius: 4px; }
 
-  details.settings { margin-left: 4px; }
-  details.settings summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 16px; }
-  details.settings summary::-webkit-details-marker { display: none; }
-  details.settings .pop {
-    position: absolute; right: 20px; margin-top: 8px; background: #fff; border: 1px solid var(--border);
-    border-radius: 8px; box-shadow: var(--shadow); padding: 12px; width: 260px; z-index: 30;
-  }
-  details.settings .pop label { margin-bottom: 4px; }
-  details.settings .pop input { width: 100%; }
-
   @media (max-width: 640px) {
     #debug { width: 100%; right: -100%; }
     .formGrid { grid-template-columns: 1fr; }
@@ -266,16 +256,6 @@
   <div class="brand"><span class="mark">🎟️</span><h1>Events Platform — Demo</h1></div>
   <span class="who" id="whoami"></span>
   <button class="btn ghost small hidden" id="logoutBtn">Log out</button>
-  <details class="settings">
-    <summary title="Settings">⚙</summary>
-    <div class="pop">
-      <label>API base URL</label>
-      <input type="text" id="baseUrl">
-      <p class="muted" style="font-size:11px;margin:8px 0 0">
-        Requests are logged in the API log drawer (bottom-right).
-      </p>
-    </div>
-  </details>
 </header>
 
 <main>
@@ -475,13 +455,11 @@
   });
   fillDemoAccount($("#demoFillSeeker")); // default: seeker, prefilled on load
 
-  // ---- settings -------------------------------------------------------
-
-  var baseUrlInput = $("#baseUrl");
-  baseUrlInput.value = localStorage.getItem("demo_base_url") || window.location.origin;
-  baseUrlInput.addEventListener("change", function () {
-    localStorage.setItem("demo_base_url", baseUrlInput.value);
-  });
+  // This page is always served by the same Django process as the API
+  // (see README "Deployment" — WhiteNoise serves it same-origin in
+  // production too, not just under runserver), so the base URL is never
+  // anything other than wherever this page itself was loaded from.
+  var API_BASE = window.location.origin;
 
   // ---- toasts -----------------------------------------------------------
 
@@ -581,7 +559,7 @@
 
   function api(method, path, body, opts) {
     opts = opts || {};
-    var url = baseUrlInput.value.replace(/\/$/, "") + path;
+    var url = API_BASE + path;
     var headers = { "Content-Type": "application/json" };
     if (state.access && !opts.noAuth) { headers.Authorization = "Bearer " + state.access; }
 
@@ -610,7 +588,7 @@
       });
     }).catch(function (err) {
       logResponse(method, path, 0, { detail: String(err) });
-      toast("Network error — is the server running at " + baseUrlInput.value + "?", "err");
+      toast("Network error — is the server running?", "err");
       return { ok: false, status: 0, data: {} };
     });
   }
