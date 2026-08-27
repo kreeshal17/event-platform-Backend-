@@ -53,6 +53,11 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Lets this same Django process serve its own static files (including
+    # apps/common/static/demo/index.html) in production, where DEBUG=False
+    # turns off Django's dev-only automatic static serving. Must sit right
+    # after SecurityMiddleware, per whitenoise's own setup docs.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -184,8 +189,21 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
+#
+# In development (DEBUG=True), Django's own runserver auto-serves files
+# straight from each app's static/ directory — no STATIC_ROOT needed, which
+# is how the demo frontend has been reachable at /static/demo/index.html so
+# far. In production (DEBUG=False), that auto-serving turns off; WhiteNoise
+# (see MIDDLEWARE) serves STATIC_ROOT instead, which `collectstatic` has to
+# populate first — see README "Deployment".
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

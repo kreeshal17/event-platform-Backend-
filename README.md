@@ -537,6 +537,44 @@ seeker can still click "Create event"), it lets the API's own permission
 checks reject it and shows that rejection in the log and as a toast,
 rather than duplicating authorization logic on the client.
 
+## Deployment
+
+This deploys as **one service** — Django serves the API and the demo
+frontend together, in production too, not just under `runserver`. That's
+what [WhiteNoise](https://whitenoise.readthedocs.io/) is for: Django's own
+static-file auto-serving only works in `DEBUG=True`/`runserver`; WhiteNoise
+(`MIDDLEWARE`, right after `SecurityMiddleware`) lets the *same* process
+keep serving `/static/...` — including `/static/demo/index.html` — once
+`DEBUG=False`. No separate static host, no CDN, no CORS needed for the
+demo page. This works the same way on AWS EC2, Elastic Beanstalk, ECS/
+Fargate, App Runner, or any other platform that runs a single container/
+process — you're deploying one thing, not a frontend and a backend
+separately.
+
+```bash
+pip install -r requirements.txt
+
+# Real values for all of these — DJANGO_DEBUG unset/false, a generated
+# DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS set to your real domain(s),
+# DATABASE_*/REDIS_URL pointing at managed Postgres/Redis (e.g. RDS/
+# ElastiCache) rather than the local docker-compose services, which are
+# dev-only. See "Environment variables" above for the full list.
+
+python manage.py migrate
+python manage.py collectstatic --noinput   # populates STATIC_ROOT for WhiteNoise
+gunicorn config.wsgi:application --bind 0.0.0.0:$PORT   # never runserver in production
+```
+
+**Not configured here, on purpose — depends on your TLS setup**:
+`python manage.py check --deploy` flags `SECURE_HSTS_SECONDS`,
+`SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, and `CSRF_COOKIE_SECURE`.
+All four are about HTTPS enforcement, and the right values depend on where
+SSL is actually terminated (this app directly, vs. a load balancer/reverse
+proxy in front of it, which would also need `SECURE_PROXY_SSL_HEADER` set
+to match). Hardcoding them without knowing that would either do nothing
+or break local/non-HTTPS testing, so this is flagged as a real gap to
+close before serving real traffic, not silently decided here.
+
 ## Running tests
 
 ```bash
@@ -577,10 +615,13 @@ namespaced (`apps.accounts`, ...).
   indexes. A `pg_trgm` GIN index or Postgres full-text search would be the
   production answer; deliberately not added here to keep the assignment
   compact.
-- **The demo frontend relies on `DEBUG=True`.** Django's `staticfiles`
-  app only auto-serves static files through `runserver` when `DEBUG` is
-  on (see "Demo frontend" above) — a real deployment would serve static
-  assets through a proper static-file host/CDN instead, and wouldn't ship
-  this developer-facing demo page at all.
+- **The demo frontend is a developer-facing tool, not a real product
+  frontend** — it ships in this repo and deploys with the app (see
+  "Deployment" above; WhiteNoise serves it in production too, not just
+  under `DEBUG=True`), but a real deployment of this project wouldn't
+  want a demo/testing page reachable at `/static/demo/index.html`
+  alongside a real frontend. Removing it (or gating it behind `DEBUG`)
+  would be a one-line call before shipping this beyond a grading/demo
+  context.
 - Further limitations will be added here as later phases introduce the
   behaviour they apply to.
