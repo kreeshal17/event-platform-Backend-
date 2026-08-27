@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Events Platform — API Demo</title>
+<style>
+  :root {
+    --border: #ddd;
+    --muted: #666;
+    --bg: #fafafa;
+    --accent: #2563eb;
+    --danger: #b91c1c;
+    --ok: #15803d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: #111;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; margin-right: auto; }
+  header input[type=text] { width: 220px; }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 16px;
+    display: grid;
+    gap: 16px;
+  }
+  section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  section h2 { font-size: 15px; margin: 0 0 10px; }
+  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input, select, textarea {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  textarea { width: 100%; min-height: 50px; }
+  button {
+    padding: 6px 12px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.secondary { background: #fff; color: var(--accent); }
+  button.danger { background: #fff; color: var(--danger); border-color: var(--danger); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .hidden { display: none !important; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 99px;
+    font-size: 11px;
+    background: #eee;
+  }
+  .pill.ok { background: #dcfce7; color: var(--ok); }
+  .pill.full { background: #fee2e2; color: var(--danger); }
+  #debug {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 360px;
+    background: #0b1020;
+    color: #d7e0ff;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    padding: 10px;
+    border-left: 1px solid #222;
+  }
+  #debug h2 { color: #fff; font-size: 13px; margin: 0 0 8px; }
+  #debug pre { white-space: pre-wrap; word-break: break-word; margin: 0 0 14px; }
+  #debug .status-ok { color: #7ee787; }
+  #debug .status-err { color: #ff7b72; }
+  body.with-debug main { margin-right: 376px; }
+  @media (max-width: 800px) {
+    #debug { position: static; width: auto; border-left: none; border-top: 1px solid var(--border); }
+    body.with-debug main { margin-right: auto; }
+  }
+</style>
+</head>
+<body class="with-debug">
+
+<header>
+  <h1>Events Platform — API Demo</h1>
+  <input type="text" id="baseUrl" title="API base URL">
+  <span id="whoami" class="muted">not logged in</span>
+  <button id="logoutBtn" class="secondary hidden">Log out</button>
+</header>
+
+<main>
+
+  <section id="authSection">
+    <h2>Auth</h2>
+    <div class="row" style="margin-bottom:10px">
+      <form id="signupForm">
+        <strong style="width:100%">Signup</strong>
+        <input type="email" name="email" placeholder="email" required>
+        <input type="password" name="password" placeholder="password" required>
+        <select name="role"><option value="seeker">seeker</option><option value="facilitator">facilitator</option></select>
+        <button type="submit">Sign up</button>
+      </form>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <form id="verifyForm">
+        <strong style="width:100%">Verify email</strong>
+        <input type="email" name="email" placeholder="email" required>
+        <input type="text" name="otp" placeholder="6-digit code" required>
+        <button type="submit">Verify</button>
+        <button type="button" id="resendBtn" class="secondary">Resend code</button>
+      </form>
+    </div>
+    <div class="row">
+      <form id="loginForm">
+        <strong style="width:100%">Login</strong>
+        <input type="email" name="email" placeholder="email" required>
+        <input type="password" name="password" placeholder="password" required>
+        <button type="submit">Log in</button>
+      </form>
+    </div>
+    <p class="muted">The OTP is emailed via the console backend — check the terminal running <code>manage.py runserver</code> for the code. Any role can attempt any action below; the API's own permission checks decide what's actually allowed, and rejections show up in the response panel on the right.</p>
+  </section>
+
+  <section id="appSection" class="hidden">
+
+    <h2>Create event (facilitator)</h2>
+    <form id="createEventForm">
+      <input type="text" name="title" placeholder="title" required style="width:180px">
+      <input type="text" name="language" placeholder="language" value="en" style="width:70px">
+      <input type="text" name="location" placeholder="location" style="width:120px">
+      <input type="text" name="capacity" placeholder="capacity (blank = unlimited)" style="width:170px">
+      <br>
+      <input type="datetime-local" name="starts_at" required>
+      <input type="datetime-local" name="ends_at" required>
+      <textarea name="description" placeholder="description"></textarea>
+      <button type="submit">Create event</button>
+    </form>
+  </section>
+
+  <section id="eventsSection" class="hidden">
+    <h2>Events</h2>
+    <form id="filterForm" class="row" style="margin-bottom:10px">
+      <input type="text" name="q" placeholder="search title/description">
+      <input type="text" name="location" placeholder="location (exact)">
+      <input type="text" name="language" placeholder="language (exact)">
+      <button type="submit" class="secondary">Filter</button>
+      <button type="button" id="clearFilterBtn" class="secondary">Clear</button>
+    </form>
+    <table>
+      <thead><tr><th>Event</th><th>When / where</th><th>Seats</th><th>Actions</th></tr></thead>
+      <tbody id="eventsBody"></tbody>
+    </table>
+    <div class="row" style="margin-top:8px">
+      <button id="prevPageBtn" class="secondary" disabled>&larr; Prev</button>
+      <button id="nextPageBtn" class="secondary" disabled>Next &rarr;</button>
+      <span id="pageInfo" class="muted"></span>
+    </div>
+  </section>
+
+  <section id="enrollmentsSection" class="hidden">
+    <h2>My enrollments</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button id="scopeUpcomingBtn" class="secondary">Upcoming</button>
+      <button id="scopePastBtn" class="secondary">Past</button>
+    </div>
+    <table>
+      <thead><tr><th>Event</th><th>When</th><th>Status</th></tr></thead>
+      <tbody id="enrollmentsBody"></tbody>
+    </table>
+  </section>
+
+  <section id="myEventsSection" class="hidden">
+    <h2>My events (facilitator)</h2>
+    <table>
+      <thead><tr><th>Event</th><th>When</th><th>Enrolled / available</th></tr></thead>
+      <tbody id="myEventsBody"></tbody>
+    </table>
+  </section>
+
+</main>
+
+<aside id="debug">
+  <h2>Last response</h2>
+  <div id="debugBody" class="muted">No requests yet.</div>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  var baseUrlInput = $("#baseUrl");
+  baseUrlInput.value = localStorage.getItem("demo_base_url") || window.location.origin;
+  baseUrlInput.addEventListener("change", function () {
+    localStorage.setItem("demo_base_url", baseUrlInput.value);
+  });
+
+  var state = {
+    access: localStorage.getItem("demo_access") || null,
+    refresh: localStorage.getItem("demo_refresh") || null,
+    email: localStorage.getItem("demo_email") || null,
+    eventsNextUrl: null,
+    eventsPrevUrl: null,
+    enrollScope: "upcoming"
+  };
+
+  function setTokens(access, refresh, email) {
+    state.access = access;
+    state.refresh = refresh;
+    state.email = email || state.email;
+    if (access) { localStorage.setItem("demo_access", access); } else { localStorage.removeItem("demo_access"); }
+    if (refresh) { localStorage.setItem("demo_refresh", refresh); } else { localStorage.removeItem("demo_refresh"); }
+    if (state.email) { localStorage.setItem("demo_email", state.email); }
+    refreshLoginUI();
+  }
+
+  function refreshLoginUI() {
+    var loggedIn = !!state.access;
+    $("#whoami").textContent = loggedIn ? state.email : "not logged in";
+    $("#logoutBtn").classList.toggle("hidden", !loggedIn);
+    $("#authSection").classList.toggle("hidden", loggedIn);
+    ["appSection", "eventsSection", "enrollmentsSection", "myEventsSection"].forEach(function (id) {
+      $("#" + id).classList.toggle("hidden", !loggedIn);
+    });
+    if (loggedIn) { loadEvents(); loadEnrollments(); loadMyEvents(); }
+  }
+
+  $("#logoutBtn").addEventListener("click", function () { setTokens(null, null); });
+
+  // ---- debug panel -------------------------------------------------
+
+  function logResponse(method, url, status, body) {
+    var el = $("#debugBody");
+    var cls = status >= 200 && status < 300 ? "status-ok" : "status-err";
+    var html = "<div><b class=\"" + cls + "\">" + status + "</b> " + method + " " +
+      escapeHtml(url) + "</div><pre>" + escapeHtml(JSON.stringify(body, null, 2)) + "</pre>";
+    el.innerHTML = html + el.innerHTML;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ---- API helper ----------------------------------------------------
+  // A single fetch wrapper: attaches the bearer token, logs every call
+  // to the debug panel, and retries exactly once through /api/auth/refresh/
+  // on a 401 before giving up and forcing logout.
+
+  function api(method, path, body, opts) {
+    opts = opts || {};
+    var url = baseUrlInput.value.replace(/\/$/, "") + path;
+    var headers = { "Content-Type": "application/json" };
+    if (state.access && !opts.noAuth) { headers.Authorization = "Bearer " + state.access; }
+
+    return fetch(url, {
+      method: method,
+      headers: headers,
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        logResponse(method, path, res.status, data);
+        if (res.status === 401 && state.refresh && !opts.isRetry) {
+          return api("POST", "/api/auth/refresh/", { refresh: state.refresh }, { noAuth: true, isRetry: true })
+            .then(function (refreshResult) {
+              if (refreshResult.ok && refreshResult.data.access) {
+                setTokens(refreshResult.data.access, state.refresh);
+                return api(method, path, body, Object.assign({}, opts, { isRetry: true }));
+              }
+              setTokens(null, null);
+              return { ok: false, status: res.status, data: data };
+            });
+        }
+        return { ok: res.ok, status: res.status, data: data };
+      });
+    });
+  }
+
+  // ---- auth forms ------------------------------------------------------
+
+  function formToObject(form) {
+    var out = {};
+    new FormData(form).forEach(function (v, k) { if (v !== "") out[k] = v; });
+    return out;
+  }
+
+  $("#signupForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    api("POST", "/api/auth/signup/", formToObject(e.target), { noAuth: true });
+  });
+
+  $("#verifyForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    api("POST", "/api/auth/verify-email/", formToObject(e.target), { noAuth: true });
+  });
+
+  $("#resendBtn").addEventListener("click", function () {
+    var email = $("#verifyForm [name=email]").value;
+    api("POST", "/api/auth/resend-otp/", { email: email }, { noAuth: true });
+  });
+
+  $("#loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var data = formToObject(e.target);
+    api("POST", "/api/auth/login/", data, { noAuth: true }).then(function (r) {
+      if (r.ok) { setTokens(r.data.access, r.data.refresh, data.email); }
+    });
+  });
+
+  // ---- events ------------------------------------------------------
+
+  $("#createEventForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var data = formToObject(e.target);
+    if (data.capacity !== undefined) { data.capacity = parseInt(data.capacity, 10); }
+    if (data.starts_at) { data.starts_at = new Date(data.starts_at).toISOString(); }
+    if (data.ends_at) { data.ends_at = new Date(data.ends_at).toISOString(); }
+    api("POST", "/api/events/", data).then(function (r) {
+      if (r.ok) { e.target.reset(); loadEvents(); }
+    });
+  });
+
+  $("#filterForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    loadEvents(buildQuery(formToObject(e.target)));
+  });
+  $("#clearFilterBtn").addEventListener("click", function () {
+    $("#filterForm").reset();
+    loadEvents();
+  });
+
+  function buildQuery(params) {
+    var qs = Object.keys(params).map(function (k) { return k + "=" + encodeURIComponent(params[k]); });
+    return qs.length ? "?" + qs.join("&") : "";
+  }
+
+  function loadEvents(query) {
+    api("GET", "/api/events/" + (query || "")).then(function (r) {
+      if (!r.ok) return;
+      renderEvents(r.data.results || []);
+      state.eventsNextUrl = r.data.next;
+      state.eventsPrevUrl = r.data.previous;
+      $("#nextPageBtn").disabled = !state.eventsNextUrl;
+      $("#prevPageBtn").disabled = !state.eventsPrevUrl;
+      $("#pageInfo").textContent = (r.data.count || 0) + " total";
+    });
+  }
+
+  $("#nextPageBtn").addEventListener("click", function () {
+    if (state.eventsNextUrl) { loadEvents(pathAndQuery(state.eventsNextUrl)); }
+  });
+  $("#prevPageBtn").addEventListener("click", function () {
+    if (state.eventsPrevUrl) { loadEvents(pathAndQuery(state.eventsPrevUrl)); }
+  });
+  function pathAndQuery(fullUrl) {
+    var idx = fullUrl.indexOf("/api/");
+    return idx === -1 ? "" : fullUrl.slice(idx).replace("/api/events/", "");
+  }
+
+  function renderEvents(events) {
+    var body = $("#eventsBody");
+    body.innerHTML = "";
+    events.forEach(function (ev) {
+      var full = ev.capacity !== null && ev.seats_taken >= ev.capacity;
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td><b>" + escapeHtml(ev.title) + "</b><br><span class=\"muted\">" + escapeHtml(ev.description || "") + "</span></td>" +
+        "<td>" + escapeHtml(ev.location) + " &middot; " + escapeHtml(ev.language) + "<br>" +
+          "<span class=\"muted\">" + fmt(ev.starts_at) + " &rarr; " + fmt(ev.ends_at) + "</span></td>" +
+        "<td><span class=\"pill " + (full ? "full" : "ok") + "\">" + ev.seats_taken + (ev.capacity === null ? "" : " / " + ev.capacity) + "</span></td>" +
+        "<td></td>";
+      var actions = tr.lastElementChild;
+
+      var enrollBtn = document.createElement("button");
+      enrollBtn.textContent = "Enroll";
+      enrollBtn.className = "secondary";
+      enrollBtn.addEventListener("click", function () {
+        api("POST", "/api/events/" + ev.id + "/enroll/").then(function (r) { if (r.ok) { loadEvents(); loadEnrollments(); } });
+      });
+      actions.appendChild(enrollBtn);
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.className = "secondary";
+      cancelBtn.addEventListener("click", function () {
+        api("POST", "/api/events/" + ev.id + "/cancel/").then(function (r) { if (r.ok) { loadEvents(); loadEnrollments(); } });
+      });
+      actions.appendChild(cancelBtn);
+
+      var deleteBtn = document.createElement("button");
+      deleteBtn.textContent = "Delete";
+      deleteBtn.className = "danger";
+      deleteBtn.addEventListener("click", function () {
+        api("DELETE", "/api/events/" + ev.id + "/").then(function (r) { if (r.ok) { loadEvents(); loadMyEvents(); } });
+      });
+      actions.appendChild(deleteBtn);
+
+      body.appendChild(tr);
+    });
+  }
+
+  function fmt(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    return d.toLocaleString();
+  }
+
+  // ---- enrollments ------------------------------------------------------
+
+  $("#scopeUpcomingBtn").addEventListener("click", function () { state.enrollScope = "upcoming"; loadEnrollments(); });
+  $("#scopePastBtn").addEventListener("click", function () { state.enrollScope = "past"; loadEnrollments(); });
+
+  function loadEnrollments() {
+    api("GET", "/api/enrollments/?scope=" + state.enrollScope).then(function (r) {
+      var body = $("#enrollmentsBody");
+      body.innerHTML = "";
+      if (!r.ok) return;
+      (r.data.results || []).forEach(function (en) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + escapeHtml(en.event.title) + "</td>" +
+          "<td class=\"muted\">" + fmt(en.event.starts_at) + "</td>" +
+          "<td><span class=\"pill " + (en.status === "enrolled" ? "ok" : "") + "\">" + en.status + "</span></td>";
+        body.appendChild(tr);
+      });
+    });
+  }
+
+  // ---- facilitator's own events ------------------------------------
+
+  function loadMyEvents() {
+    api("GET", "/api/facilitator/events/").then(function (r) {
+      var body = $("#myEventsBody");
+      body.innerHTML = "";
+      if (!r.ok) return;
+      (r.data.results || []).forEach(function (ev) {
+        var tr = document.createElement("tr");
+        tr.innerHTML =
+          "<td>" + escapeHtml(ev.title) + "</td>" +
+          "<td class=\"muted\">" + fmt(ev.starts_at) + "</td>" +
+          "<td>" + ev.enrolled_count + " enrolled, " +
+            (ev.available_seats === null ? "unlimited" : ev.available_seats + " available") + "</td>";
+        body.appendChild(tr);
+      });
+    });
+  }
+
+  refreshLoginUI();
+})();
+</script>
+
+</body>
+</html>

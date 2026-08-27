@@ -463,6 +463,29 @@ facilitator (`seed_demo` above), but you can point `demo_email`/
 `demo_password` at any account, or use Signup/Verify Email to create a
 fresh one first.
 
+## Demo frontend
+
+A single, dependency-free HTML file (`apps/common/static/demo/index.html`)
+exercises the whole API from a browser — signup, verify, login (with
+automatic refresh-on-401), event search/create/delete, enroll/cancel, and
+"my enrollments"/"my events". With `docker compose up -d` and
+`python manage.py runserver` running, open:
+
+```
+http://localhost:8000/static/demo/index.html
+```
+
+It's served by Django's own `staticfiles` app (automatic in `DEBUG` mode
+— see "Known limitations" below), so it's same-origin with the API and
+needs no CORS configuration. A panel on the right logs every request's
+method, URL, status, and JSON body — including rejections — which is
+useful for seeing the API's permission/validation errors directly: the
+UI deliberately doesn't hide any action by role (e.g. a seeker can still
+click "Create event"), it lets the API's own permission checks reject it
+and shows that rejection in the log, rather than duplicating authorization
+logic on the client. It has no build step and no framework — vanilla
+HTML/CSS/JS, viewable by opening the file itself.
+
 ## Running tests
 
 ```bash
@@ -503,5 +526,10 @@ namespaced (`apps.accounts`, ...).
   indexes. A `pg_trgm` GIN index or Postgres full-text search would be the
   production answer; deliberately not added here to keep the assignment
   compact.
+- **The demo frontend relies on `DEBUG=True`.** Django's `staticfiles`
+  app only auto-serves static files through `runserver` when `DEBUG` is
+  on (see "Demo frontend" above) — a real deployment would serve static
+  assets through a proper static-file host/CDN instead, and wouldn't ship
+  this developer-facing demo page at all.
 - Further limitations will be added here as later phases introduce the
   behaviour they apply to.
