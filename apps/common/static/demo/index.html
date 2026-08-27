@@ -4,13 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Events Platform — API Demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎟️</text></svg>">
 <style>
   :root {
-    --border: #e2e5ea;
+    --border: #e5e7f0;
     --muted: #6b7280;
-    --bg: #f5f6f8;
+    --bg: #f4f5fb;
     --card: #ffffff;
     --accent: #4f46e5;
+    --accent2: #7c3aed;
     --accent-dark: #4338ca;
     --danger: #dc2626;
     --danger-bg: #fef2f2;
@@ -18,58 +20,77 @@
     --ok-bg: #f0fdf4;
     --warn: #b45309;
     --warn-bg: #fffbeb;
-    --radius: 10px;
-    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 2px 6px rgba(16,24,40,.06);
+    --shadow-lg: 0 8px 24px rgba(79,70,229,.10), 0 2px 8px rgba(16,24,40,.06);
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    background: var(--bg);
+    min-height: 100vh;
     color: #111827;
     -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(720px 420px at 8% -8%, rgba(124,58,237,.10), transparent 60%),
+      radial-gradient(640px 380px at 96% 8%, rgba(79,70,229,.09), transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
   }
   a { color: var(--accent); }
+  ::selection { background: #ddd6fe; }
 
   header {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 12px 20px;
-    background: var(--card);
+    background: rgba(255,255,255,.75);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
     z-index: 20;
   }
-  header .brand { display: flex; align-items: center; gap: 8px; margin-right: auto; }
-  header .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
-  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .brand { display: flex; align-items: center; gap: 9px; margin-right: auto; }
+  header .brand .mark {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; box-shadow: 0 2px 6px rgba(79,70,229,.35);
+  }
+  header h1 {
+    font-size: 15px; margin: 0; font-weight: 700; letter-spacing: -.01em;
+  }
   header .who { font-size: 13px; color: var(--muted); }
   header .who b { color: #111827; }
 
   .btn {
     padding: 7px 14px;
     border: 1px solid var(--accent);
-    background: var(--accent);
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
     color: #fff;
-    border-radius: 7px;
+    border-radius: 8px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transition: background .12s;
+    transition: transform .08s ease, box-shadow .15s ease, filter .12s ease;
+    box-shadow: 0 1px 2px rgba(79,70,229,.25);
   }
-  .btn:hover { background: var(--accent-dark); }
-  .btn:disabled { opacity: 0.5; cursor: default; }
-  .btn.secondary { background: transparent; color: var(--accent); }
-  .btn.secondary:hover { background: #eef2ff; }
-  .btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
-  .btn.danger:hover { background: var(--danger-bg); }
-  .btn.ghost { background: transparent; color: var(--muted); border-color: transparent; }
-  .btn.ghost:hover { background: #f3f4f6; }
+  .btn:hover { filter: brightness(1.06); box-shadow: 0 4px 10px rgba(79,70,229,.28); }
+  .btn:active { transform: translateY(1px) scale(.99); }
+  .btn:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
+  .btn.secondary { background: #fff; color: var(--accent); box-shadow: none; }
+  .btn.secondary:hover { background: #eef2ff; filter: none; }
+  .btn.danger { background: #fff; color: var(--danger); border-color: var(--danger); box-shadow: none; }
+  .btn.danger:hover { background: var(--danger-bg); filter: none; }
+  .btn.ghost { background: transparent; color: var(--muted); border-color: transparent; box-shadow: none; }
+  .btn.ghost:hover { background: #f3f4f6; filter: none; }
   .btn.small { padding: 4px 10px; font-size: 12px; }
   .btn.block { width: 100%; justify-content: center; }
 
@@ -93,22 +114,30 @@
   .center { text-align: center; }
 
   /* ---- auth ---- */
-  #authWrap { max-width: 420px; margin: 40px auto 0; }
+  #authWrap { max-width: 420px; margin: 56px auto 0; animation: riseIn .35s ease-out; }
   .authCard {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 28px 26px;
+    box-shadow: var(--shadow-lg);
+    padding: 30px 28px;
+    position: relative;
+    overflow: hidden;
   }
-  .authCard h2 { margin: 0 0 4px; font-size: 18px; }
+  .authCard::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+  .authCard h2 { margin: 0 0 4px; font-size: 19px; letter-spacing: -.01em; }
   .authCard p.sub { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
   .authTabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 3px; margin-bottom: 20px; }
   .authTabs button {
     flex: 1; padding: 7px; border: none; background: transparent; border-radius: 6px;
     font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
+    transition: background .15s, color .15s;
   }
-  .authTabs button.active { background: #fff; color: #111827; box-shadow: var(--shadow); }
+  .authTabs button.active { background: #fff; color: var(--accent); box-shadow: var(--shadow); }
+  @keyframes riseIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .authForm { display: flex; flex-direction: column; gap: 12px; }
   .callout {
     border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5;
@@ -124,14 +153,18 @@
   .linkbtn:disabled { color: var(--muted); cursor: default; }
 
   /* ---- app ---- */
+  #appWrap { animation: fadeIn .25s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   .tabbar { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
   .tabbar button {
     padding: 9px 14px; border: none; background: none; font-size: 13px; font-weight: 600;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
   }
+  .tabbar button:hover { color: #374151; }
   .tabbar button.active { color: var(--accent); border-bottom-color: var(--accent); }
   .panel { display: none; }
-  .panel.active { display: block; }
+  .panel.active { display: block; animation: fadeIn .2s ease-out; }
 
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
   .toolbar .field { min-width: 140px; }
@@ -140,42 +173,52 @@
   .card {
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 14px 16px; box-shadow: var(--shadow);
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
   }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: #d8dbf5; }
   .card .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
-  .card h3 { margin: 0 0 3px; font-size: 14px; }
+  .card h3 { margin: 0 0 3px; font-size: 14px; font-weight: 700; }
   .card .meta { font-size: 12px; color: var(--muted); line-height: 1.6; }
   .card .desc { font-size: 13px; color: #374151; margin-top: 6px; }
   .card .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 
-  .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-  .badge.ok { background: var(--ok-bg); color: var(--ok); }
-  .badge.full { background: var(--danger-bg); color: var(--danger); }
-  .badge.neutral { background: #f3f4f6; color: #374151; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid transparent; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); border-color: #bbf7d0; }
+  .badge.full { background: var(--danger-bg); color: var(--danger); border-color: #fecaca; }
+  .badge.neutral { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
 
-  .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13px; }
+  .empty {
+    text-align: center; padding: 44px 20px; color: var(--muted); font-size: 13px;
+    background: var(--card); border: 1px dashed var(--border); border-radius: var(--radius);
+  }
   .pager { display: flex; align-items: center; gap: 10px; margin-top: 16px; justify-content: center; }
 
-  .createCard { margin-bottom: 18px; }
+  .createCard { margin-bottom: 18px; border: 1px solid #e0e0fb; background: linear-gradient(180deg, #fbfaff, #fff); }
   .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .formGrid .span2 { grid-column: 1 / -1; }
 
   /* ---- toasts ---- */
   #toasts { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; width: 300px; }
   .toast {
-    background: #111827; color: #fff; padding: 11px 14px; border-radius: 8px; font-size: 13px;
-    box-shadow: 0 4px 12px rgba(0,0,0,.15); animation: slidein .15s ease-out;
+    background: #111827; color: #fff; padding: 11px 14px; border-radius: 9px; font-size: 13px;
+    box-shadow: 0 8px 20px rgba(0,0,0,.18); animation: slidein .18s ease-out;
+    border: 1px solid rgba(255,255,255,.08);
   }
-  .toast.ok { background: #14532d; }
-  .toast.err { background: #7f1d1d; }
-  @keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .toast.ok { background: linear-gradient(135deg, #15803d, #166534); }
+  .toast.err { background: linear-gradient(135deg, #b91c1c, #7f1d1d); }
+  @keyframes slidein { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
   /* ---- debug drawer ---- */
-  #logToggle { position: fixed; bottom: 16px; right: 16px; z-index: 30; }
+  #logToggle {
+    position: fixed; bottom: 16px; right: 16px; z-index: 30;
+    box-shadow: var(--shadow-lg) !important;
+  }
   #debug {
     position: fixed; right: -400px; top: 0; bottom: 0; width: 380px;
     background: #0b1020; color: #d7e0ff; overflow: auto;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
-    padding: 16px; border-left: 1px solid #222; transition: right .18s ease; z-index: 25;
+    padding: 16px; border-left: 1px solid #222; transition: right .2s cubic-bezier(.4,0,.2,1); z-index: 25;
+    box-shadow: -12px 0 32px rgba(0,0,0,.25);
   }
   #debug.open { right: 0; }
   #debug .hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -185,6 +228,9 @@
   #debug .status-ok { color: #7ee787; }
   #debug .status-err { color: #ff7b72; }
   #debug .clearBtn { background: none; border: 1px solid #374151; color: #9ca3af; border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+  #debug::-webkit-scrollbar { width: 8px; }
+  #debug::-webkit-scrollbar-track { background: transparent; }
+  #debug::-webkit-scrollbar-thumb { background: #2a3352; border-radius: 4px; }
 
   details.settings { margin-left: 4px; }
   details.settings summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 16px; }
@@ -205,7 +251,7 @@
 <body>
 
 <header>
-  <div class="brand"><span class="dot"></span><h1>Events Platform — Demo</h1></div>
+  <div class="brand"><span class="mark">🎟️</span><h1>Events Platform — Demo</h1></div>
   <span class="who" id="whoami"></span>
   <button class="btn ghost small hidden" id="logoutBtn">Log out</button>
   <details class="settings">
