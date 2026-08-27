@@ -4,12 +4,13 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 6 (enrollment lifecycle) complete.** Signup, email
-verification, login, token refresh, event CRUD, event search/filtering/
-ordering, and enroll/cancel/enrollment-listing all exist. Enroll's
-capacity check is **deliberately naive** in this phase (see below) — the
-concurrency-safe version is Phase 7. Resend and DRF throttling are not
-implemented yet.
+**Status: Phase 6 (enrollment lifecycle) and Phase 3b (resend + DRF
+throttling) both complete** — done out of the phase-plan's numeric order,
+at explicit direction. Signup, email verification, login, resend, token
+refresh, DRF throttling, event CRUD, event search/filtering/ordering, and
+enroll/cancel/enrollment-listing all exist. Enroll's capacity check is
+**deliberately naive** in this phase (see "Enrollment" below) — the
+concurrency-safe version is Phase 7.
 
 ## Stack
 
@@ -58,9 +59,10 @@ on the same server automatically; no separate test configuration is needed.
 
 ## Redis
 
-Redis is `CACHES["default"]` and, once auth views exist (Phase 3b), backs
-DRF throttling — this is what makes throttle counters shared across Django
-processes/workers instead of each process throttling independently.
+Redis is `CACHES["default"]` and backs DRF throttling on
+signup/login/resend-otp — this is what makes throttle counters shared
+across Django processes/workers instead of each process throttling
+independently.
 
 **Redis is scoped to cache and throttle state only.** It never stores OTPs
 or any other durable data — OTP data (`EmailOTP` rows) lives entirely in
@@ -68,7 +70,8 @@ PostgreSQL. This matters for correctness, not just tidiness: Redis data can
 be evicted or flushed at any time, and if OTP business logic (the 60-second
 resend cooldown, the 5-per-hour cap) depended on Redis state, an eviction
 would silently hand a user extra resends. Both are instead derived from
-`EmailOTP` rows in Postgres, keyed by normalized email, in Phase 3b.
+`EmailOTP` rows in Postgres, keyed by normalized email (see
+`apps.accounts.services.resend_otp`).
 
 Like Postgres, this project runs its own project-local Redis via Docker
 (`docker compose up -d` starts both). It listens on host port **6379** and
@@ -76,13 +79,16 @@ has no auth — it's not exposed beyond the host and holds nothing durable, so
 this stays intentionally minimal. Redis data lives in a named Docker volume,
 though nothing currently stored in it needs to survive a restart.
 
-**Tests never require a running Redis.** `manage.py test` sets
-`DJANGO_TESTING=True` internally (see `manage.py`), which switches
-`CACHES["default"]` to Django's in-process `LocMemCache` — so the default
-suite is green with Redis stopped. Dedicated throttle tests, added in
-Phase 3b, will reconnect to a real Redis (a separate database index, flushed
-in `setUp`) specifically to test throttling, and will skip themselves with a
-clear message if that Redis is unreachable rather than fail the whole suite.
+**Tests never require a running Redis** — except one dedicated file. `manage.py
+test` sets `DJANGO_TESTING=True` internally (see `manage.py`), which
+switches `CACHES["default"]` to Django's in-process `LocMemCache`, so the
+ordinary suite is green with Redis stopped. `apps/accounts/tests/test_throttling.py`
+is the one exception: it explicitly reconnects to a real Redis, at a
+separate database index from the app's own (`REDIS_THROTTLE_TEST_URL`,
+default db 15 vs the app's db 0), flushes it in `setUp`, and skips itself
+with a clear message if that Redis is unreachable — verified directly:
+stopping the Redis container makes those 4 tests report `skipped` (not
+`FAILED`) while the other 105 stay green.
 
 **Failure mode if Redis is down at runtime:** `IGNORE_EXCEPTIONS` is
 deliberately left at its default (`False`) in the `django-redis` config. If
@@ -158,7 +164,36 @@ for the latest active OTP, and marks the email verified. Coded errors
 - `otp_expired` — the OTP's 10-minute TTL has passed.
 - `otp_attempts_exceeded` — this attempt was the 5th wrong guess; the OTP
   is deactivated at that point (even the correct code stops working — a
-  new one has to be issued, which is Phase 3b's resend).
+  new one has to be issued, via resend below).
+
+### `POST /api/auth/resend-otp/`
+
+Public. Body: `{"email": "..."}`.
+
+`200` with `{"detail": "A new verification code has been sent."}` on
+success: issues a fresh OTP, emails it, and **invalidates every previously
+issued OTP for that user** — only the newest is ever valid; an older code
+now behaves exactly like an invalid one (`otp_invalid`).
+
+`400` on an email with no matching account. This endpoint intentionally
+does **not** hide whether an email is registered, unlike login/verify-email
+above: it's an account-management operation like signup (which already
+has to reveal duplicate emails to reject them), not a secret-guessing
+endpoint — see `DECISIONS.md`.
+
+`429` `otp_resend_cooldown` for either of two OTP-business-logic conditions
+that share the single code the spec defines for this — the response
+`detail` text differs, but `code` doesn't:
+- less than 60 seconds since the last OTP (of any status) was issued to
+  this user;
+- 5 or more OTPs already issued to this user in the trailing hour (a
+  rolling window, not calendar-hour-aligned) — counting every OTP issued
+  in that window, including the one from signup itself, since `EmailOTP`
+  has no field distinguishing "issued by signup" from "issued by resend".
+
+This cooldown/cap is OTP business logic (`apps.accounts.services.resend_otp`),
+enforced independently of — and in addition to — the DRF rate limit on
+this same endpoint described below.
 
 ### `POST /api/auth/login/`
 
@@ -177,6 +212,35 @@ never revealed for a wrong password on an unverified account either.
 
 Public. Body: `{"refresh": "..."}`. SimpleJWT's own stock
 `TokenRefreshView` — no custom behaviour needed here.
+
+### Rate limiting
+
+`signup`, `login`, and `resend-otp` are DRF-throttled (`ScopedRateThrottle`),
+env-configurable, defaulting to `AUTH_LOGIN_RATE=10/min`,
+`AUTH_SIGNUP_RATE=5/hour`, `AUTH_RESEND_OTP_RATE=5/hour`. Throttle state
+lives in the Redis-backed cache (see "Redis" above), so it's shared across
+processes/workers, not per-process. A throttled request gets DRF's stock
+`429` (no `code` field yet, same as login's `401` — Phase 8's global
+handler normalizes DRF's own built-in exception shapes).
+
+This is a genuinely separate layer from resend's own 60s cooldown/5-per-hour
+cap described above: DRF throttling is API abuse protection (how many
+requests, period); the OTP cooldown/cap is business logic about how many
+*codes* get issued. They're not substitutes for each other and both apply
+independently — e.g. hitting `/resend-otp/` 6 times in an hour could trip
+either the OTP-logic cap (`429 otp_resend_cooldown`) or, separately, the
+DRF scope limit (plain `429`), depending on timing.
+
+**Test isolation**: the ordinary test suite disables throttling entirely
+(every `auth_*` rate is `None` when running under `manage.py test` — see
+`config/settings.py`), so no unrelated test can fail from tripping a rate
+limit. `apps/accounts/tests/test_throttling.py` is the one place that
+re-enables the real rates and tests them directly, clearing the throttle
+cache in `setUp`. Re-enabling them isn't simply `@override_settings` —
+see that file's module docstring for a real DRF gotcha this ran into
+(`SimpleRateThrottle.THROTTLE_RATES` is a class attribute snapshotted once
+at import time, not dynamically re-read from `api_settings`) and how it's
+actually done (`mock.patch.dict` on the live dict object).
 
 ### Events
 
@@ -300,9 +364,10 @@ See `.env.example` for the full list. Notable ones:
 | `JWT_REFRESH_TOKEN_LIFETIME_DAYS` | SimpleJWT refresh token lifetime | `7` |
 | `REDIS_URL` | Redis connection URL for the cache backend | `redis://localhost:6379/0` |
 | `REDIS_PORT` | Host port the Docker Redis binds to | `6379` |
-| `AUTH_LOGIN_RATE` | DRF throttle rate, `auth_login` scope (not yet wired to a view) | `10/min` |
-| `AUTH_SIGNUP_RATE` | DRF throttle rate, `auth_signup` scope (not yet wired to a view) | `5/hour` |
-| `AUTH_RESEND_OTP_RATE` | DRF throttle rate, `auth_resend_otp` scope (not yet wired to a view) | `5/hour` |
+| `REDIS_THROTTLE_TEST_URL` | Separate Redis DB index used only by `test_throttling.py` | `redis://localhost:6379/15` |
+| `AUTH_LOGIN_RATE` | DRF throttle rate, `POST /api/auth/login/` | `10/min` |
+| `AUTH_SIGNUP_RATE` | DRF throttle rate, `POST /api/auth/signup/` | `5/hour` |
+| `AUTH_RESEND_OTP_RATE` | DRF throttle rate, `POST /api/auth/resend-otp/` | `5/hour` |
 
 `.env` is gitignored; only `.env.example` (with placeholder values) is
 committed. No real secrets are committed anywhere in this repo.

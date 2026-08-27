@@ -98,3 +98,24 @@ class LoginSerializer(serializers.Serializer):
 
     def validate_email(self, value):
         return value.strip().lower()
+
+
+class ResendOtpSerializer(serializers.Serializer):
+    """POST /api/auth/resend-otp/ — email.
+
+    Existence is checked here (mirroring SignupSerializer.validate_email's
+    opposite check), not hidden the way login/verify-email hide it: this
+    is an account-management operation like signup, not a secret-guessing
+    endpoint, and signup already reveals whether an email is registered
+    (it has to, to reject duplicates) — this stays consistent with that,
+    rather than with login/verify-email's anti-enumeration design, which
+    exists specifically to protect password/OTP guessing.
+    """
+
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if not User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("No account with this email exists.")
+        return email

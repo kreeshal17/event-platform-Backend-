@@ -54,6 +54,21 @@ class EmailNotVerified(APIException):
     default_code = "email_not_verified"
 
 
+class OtpResendCooldown(APIException):
+    """Raised for BOTH the 60-second per-request cooldown and the 5/hour
+    cap — spec's error-code list has only one resend-related code
+    ("otp_resend_cooldown"), so both "you must wait" scenarios share it.
+    The detail text still differs by call site to stay informative.
+    """
+
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    default_detail = {
+        "detail": "Please wait before requesting another code.",
+        "code": "otp_resend_cooldown",
+    }
+    default_code = "otp_resend_cooldown"
+
+
 class AlreadyEnrolled(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = {

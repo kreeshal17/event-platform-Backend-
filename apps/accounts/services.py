@@ -5,6 +5,7 @@ call site multiple views (and, in Phase 3b, resend) use.
 """
 
 import hmac
+from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -17,11 +18,18 @@ from apps.common.exceptions import (
     OtpAttemptsExceeded,
     OtpExpired,
     OtpInvalid,
+    OtpResendCooldown,
 )
 
 from .emails import send_otp_email
 from .models import EmailOTP
-from .otp import OTP_MAX_ATTEMPTS, hash_otp_code, issue_otp
+from .otp import (
+    OTP_MAX_ATTEMPTS,
+    OTP_RESEND_COOLDOWN_SECONDS,
+    OTP_RESEND_HOURLY_LIMIT,
+    hash_otp_code,
+    issue_otp,
+)
 
 
 def issue_and_email_otp(user) -> EmailOTP:
@@ -76,6 +84,53 @@ def verify_email(email: str, code: str) -> None:
         otp.save(update_fields=["is_active", "consumed_at"])
         user.profile.is_email_verified = True
         user.profile.save(update_fields=["is_email_verified"])
+
+
+def resend_otp(user) -> EmailOTP:
+    """Issue and email a fresh OTP for `user`, enforcing the 60-second
+    per-request cooldown and the 5-per-hour cap, and invalidating every
+    previously issued OTP so only the newest is ever valid.
+
+    Both the cooldown and the hourly cap raise the same OtpResendCooldown
+    — the spec's error-code list has only one resend-related code, so
+    there's no separate code to distinguish "wait 60s" from "wait for the
+    hourly window", only a different message.
+
+    The hourly cap counts ALL EmailOTP rows created for this user in the
+    trailing hour — including the one issued at signup, not just calls to
+    this function — since EmailOTP has no field (and the spec doesn't add
+    one) to distinguish "issued by signup" from "issued by resend".
+    """
+    now = timezone.now()
+
+    latest = EmailOTP.objects.filter(user=user).order_by("-created_at").first()
+    if latest is not None and (now - latest.created_at) < timedelta(
+        seconds=OTP_RESEND_COOLDOWN_SECONDS
+    ):
+        raise OtpResendCooldown(
+            detail={
+                "detail": "Please wait before requesting another code.",
+                "code": "otp_resend_cooldown",
+            }
+        )
+
+    window_start = now - timedelta(hours=1)
+    recent_count = EmailOTP.objects.filter(
+        user=user, created_at__gte=window_start
+    ).count()
+    if recent_count >= OTP_RESEND_HOURLY_LIMIT:
+        raise OtpResendCooldown(
+            detail={
+                "detail": "Too many codes requested. Try again later.",
+                "code": "otp_resend_cooldown",
+            }
+        )
+
+    # A resend invalidates ALL previously issued OTPs — only the newest is
+    # ever valid; an older code behaves exactly like an invalid one.
+    EmailOTP.objects.filter(user=user, is_active=True).update(is_active=False)
+
+    return issue_and_email_otp(user)
 
 
 def authenticate_and_issue_tokens(email: str, password: str) -> dict:

@@ -232,20 +232,39 @@ Redis-specific throttling behaviour genuinely needs test coverage somewhere.
 ### Choice
 
 The default test suite runs against `LocMemCache` (switched in
-automatically when `manage.py test` runs) and with no throttle classes
-wired to any endpoint yet, so it never touches Redis and throttling plays
-no role in it. Dedicated throttle tests (Phase 3b) will connect to a real
-Redis explicitly, against a separate database index from the runtime one,
-flush that index in `setUp`, and skip themselves with a clear message if
-Redis is unreachable rather than fail the whole suite.
+automatically when `manage.py test` runs). Once Phase 3b actually wired
+throttle classes onto signup/login/resend-otp, one dedicated file
+(`apps/accounts/tests/test_throttling.py`) connects to a real Redis
+instead, at a separate database index from the runtime one
+(`REDIS_THROTTLE_TEST_URL`, db 15 vs the app's db 0), flushes that index in
+`setUp`, and skips itself with a clear message if that Redis is
+unreachable — verified for real, not just written and assumed: stopping
+the Redis container makes exactly those 4 tests report `skipped` while
+the other 105 stay green.
+
+Getting there also surfaced a real DRF gotcha worth recording:
+`SimpleRateThrottle.THROTTLE_RATES` is a plain class attribute that
+snapshots `api_settings.DEFAULT_THROTTLE_RATES` once, at Python
+import time, and is never re-read afterward — so
+`@override_settings(REST_FRAMEWORK={...})` alone does *not* actually
+change what rate a throttle enforces during a test, even though it
+correctly updates `api_settings` itself (confirmed: `override_settings`
+does work this way for `CACHES`, just not for this DRF-internal snapshot).
+The tests instead use `mock.patch.dict()` to mutate the *values* of that
+already-captured dict object in place, which every subsequent request
+sees since it's the same dict, just with different values.
 
 ### Trade-off
 
-The normal test suite does not exercise Redis at all, so dedicated
-Redis-backed throttle tests are required to get real coverage of throttling
-behaviour. In exchange, the ordinary test suite stays runnable in
-environments without Docker/Redis available, which is the more common case
-during day-to-day development and grading.
+The normal test suite does not exercise Redis at all, so the dedicated
+Redis-backed throttle tests are required to get real coverage of
+throttling behaviour. In exchange, the ordinary test suite stays runnable
+in environments without Docker/Redis available, which is the more common
+case during day-to-day development and grading. The `mock.patch.dict`
+mechanism is also less obvious than a straightforward `override_settings`
+would have been, had it worked — the module docstring in
+`test_throttling.py` exists specifically so a future reader doesn't
+"simplify" it back to the broken approach.
 
 ## Decision: Configurable throttle rates
 

@@ -122,6 +122,14 @@ DATABASES = {
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
+# Used only by apps/accounts/tests/test_throttling.py: a separate Redis
+# database index from REDIS_URL's, so dedicated throttle tests exercise a
+# real Redis connection without touching (or being able to collide with)
+# whatever the app itself is using at runtime.
+REDIS_THROTTLE_TEST_URL = env(
+    "REDIS_THROTTLE_TEST_URL", default="redis://localhost:6379/15"
+)
+
 if TESTING:
     CACHES = {
         "default": {
@@ -195,13 +203,33 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@events-platform.
 
 # Django REST Framework
 #
-# DEFAULT_THROTTLE_RATES below are the env-configurable rates required for
-# login/signup/resend-otp throttling. Nothing uses them yet: no throttle
-# classes are attached to DEFAULT_THROTTLE_CLASSES or to any view, because
-# the views themselves (Phase 2+) don't exist yet. Wiring scoped throttle
-# classes onto the auth views is Phase 3b's job. Rate state, once wired, is
-# stored in the "default" cache above (Redis outside tests, LocMemCache in
-# tests), which is what makes throttling shared across processes/workers.
+# DEFAULT_THROTTLE_RATES are the env-configurable rates for login/signup/
+# resend-otp throttling (ScopedRateThrottle, wired onto those three views
+# in Phase 3b). Rate state is stored in the "default" cache above (Redis
+# outside tests, LocMemCache in tests), which is what makes throttling
+# shared across processes/workers.
+#
+# Test settings disable throttling by default: a rate of None makes
+# ScopedRateThrottle.allow_request() return True unconditionally for that
+# scope (see DRF's SimpleRateThrottle), so the ordinary test suite is
+# never affected by, say, the 6th signup in a test run hitting a 5/hour
+# cap for reasons unrelated to what that test is checking. Dedicated
+# throttling tests re-enable the real rates themselves, explicitly, via
+# @override_settings(REST_FRAMEWORK={...}) — see
+# apps/accounts/tests/test_throttling.py.
+
+if TESTING:
+    _auth_throttle_rates = {
+        "auth_login": None,
+        "auth_signup": None,
+        "auth_resend_otp": None,
+    }
+else:
+    _auth_throttle_rates = {
+        "auth_login": env("AUTH_LOGIN_RATE", default="10/min"),
+        "auth_signup": env("AUTH_SIGNUP_RATE", default="5/hour"),
+        "auth_resend_otp": env("AUTH_RESEND_OTP_RATE", default="5/hour"),
+    }
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -212,11 +240,7 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
-    "DEFAULT_THROTTLE_RATES": {
-        "auth_login": env("AUTH_LOGIN_RATE", default="10/min"),
-        "auth_signup": env("AUTH_SIGNUP_RATE", default="5/hour"),
-        "auth_resend_otp": env("AUTH_RESEND_OTP_RATE", default="5/hour"),
-    },
+    "DEFAULT_THROTTLE_RATES": _auth_throttle_rates,
 }
 
 
