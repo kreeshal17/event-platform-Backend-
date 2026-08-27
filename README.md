@@ -4,9 +4,9 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 2 (identity and OTP issuance) complete.** Signup is the only
-endpoint so far. Email verification, login, resend, events, and enrollment
-are not implemented yet.
+**Status: Phase 3a (verification and JWT) complete.** Signup, email
+verification, login, and token refresh exist. Resend, DRF throttling,
+events, and enrollment are not implemented yet.
 
 ## Stack
 
@@ -140,6 +140,41 @@ by both an application-level check and the database's partial unique index
 on `LOWER(email)`, so this holds even under a signup race on the same
 email.
 
+### `POST /api/auth/verify-email/`
+
+Public. Body: `{"email": "...", "otp": "123456"}`.
+
+`200` with `{"detail": "Email verified."}` on the correct, unexpired code
+for the latest active OTP, and marks the email verified. Coded errors
+(`400` unless noted), all shaped `{"detail": "...", "code": "..."}`:
+
+- `otp_invalid` — wrong code, **or** no active OTP for that email at all
+  (including an email that was never signed up). These are deliberately
+  indistinguishable so this endpoint can't be used to enumerate registered
+  emails.
+- `otp_expired` — the OTP's 10-minute TTL has passed.
+- `otp_attempts_exceeded` — this attempt was the 5th wrong guess; the OTP
+  is deactivated at that point (even the correct code stops working — a
+  new one has to be issued, which is Phase 3b's resend).
+
+### `POST /api/auth/login/`
+
+Public. Body: `{"email": "...", "password": "..."}`.
+
+`200` with `{"access": "...", "refresh": "..."}` (SimpleJWT tokens) once
+the email is verified. `401` (DRF's stock `AuthenticationFailed`, no
+`code` field yet — Phase 8's global handler normalizes this) for both
+wrong password and unknown email, with an identical body either way, so
+login can't be used to enumerate registered emails. `403`
+`email_not_verified` for a correct password on an unverified account —
+checked only *after* the password itself has already checked out, so it's
+never revealed for a wrong password on an unverified account either.
+
+### `POST /api/auth/refresh/`
+
+Public. Body: `{"refresh": "..."}`. SimpleJWT's own stock
+`TokenRefreshView` — no custom behaviour needed here.
+
 ## Environment variables
 
 See `.env.example` for the full list. Notable ones:
@@ -175,7 +210,9 @@ above.
 
 ```
 config/             Django project (settings, urls, wsgi/asgi)
-apps/accounts/       users, profiles, email OTP, signup (Phase 2 so far)
+apps/common/          shared, HTTP-layer-independent pieces (currently: the
+                     coded API exceptions used by accounts)
+apps/accounts/       users, profiles, email OTP, signup/verify/login/refresh
 apps/events/         event model and endpoints (Phase 4+)
 apps/enrollments/     enrollment lifecycle (Phase 6+)
 ```

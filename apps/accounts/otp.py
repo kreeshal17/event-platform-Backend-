@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 OTP_LENGTH = 6
 OTP_TTL_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
 
 _DIGITS = "0123456789"
 

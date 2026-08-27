@@ -6,6 +6,7 @@ from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
 from .models import Profile
+from .otp import OTP_LENGTH
 from .services import issue_and_email_otp
 
 
@@ -63,3 +64,37 @@ class SignupSerializer(serializers.Serializer):
         issue_and_email_otp(user)
 
         return user
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    """POST /api/auth/verify-email/ — email, otp.
+
+    Only validates *format* here (well-formed email, 6-digit code). Whether
+    the code is actually correct, expired, or attempts-exhausted is
+    business logic handled by services.verify_email(), which raises the
+    coded exceptions in apps.common.exceptions.
+    """
+
+    email = serializers.EmailField()
+    otp = serializers.CharField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_otp(self, value):
+        value = value.strip()
+        if not (value.isdigit() and len(value) == OTP_LENGTH):
+            raise serializers.ValidationError(
+                f"Must be a {OTP_LENGTH}-digit code."
+            )
+        return value
+
+
+class LoginSerializer(serializers.Serializer):
+    """POST /api/auth/login/ — email, password."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate_email(self, value):
+        return value.strip().lower()

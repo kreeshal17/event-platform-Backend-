@@ -1,5 +1,3 @@
-import re
-
 from django.contrib.auth.models import User
 from django.core import mail
 from django.db import IntegrityError, transaction
@@ -10,13 +8,9 @@ from rest_framework.test import APIClient
 from apps.accounts.models import EmailOTP, Profile
 from apps.accounts.otp import hash_otp_code
 
+from .helpers import extract_otp_code
+
 SIGNUP_URL = "/api/auth/signup/"
-
-
-def _extract_otp_code(email_body: str) -> str:
-    match = re.search(r"\b(\d{6})\b", email_body)
-    assert match, f"no 6-digit code found in email body: {email_body!r}"
-    return match.group(1)
 
 
 class SignupTests(TestCase):
@@ -126,7 +120,7 @@ class SignupTests(TestCase):
         self.client.post(SIGNUP_URL, self._payload(), format="json")
 
         self.assertEqual(len(mail.outbox), 1)
-        code = _extract_otp_code(mail.outbox[0].body)
+        code = extract_otp_code(mail.outbox[0].body)
 
         otp = EmailOTP.objects.get(user__email="new.seeker@example.com")
         self.assertEqual(hash_otp_code(code), otp.code_hash)
@@ -134,7 +128,7 @@ class SignupTests(TestCase):
     def test_otp_never_appears_in_signup_response(self):
         response = self.client.post(SIGNUP_URL, self._payload(), format="json")
 
-        code = _extract_otp_code(mail.outbox[0].body)
+        code = extract_otp_code(mail.outbox[0].body)
         otp = EmailOTP.objects.get(user__email="new.seeker@example.com")
 
         body_text = str(response.content)
@@ -152,7 +146,7 @@ class SignupTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        code = _extract_otp_code(mail.outbox[0].body)
+        code = extract_otp_code(mail.outbox[0].body)
         otp = EmailOTP.objects.get(user__email="log.check@example.com")
         self.assertEqual(hash_otp_code(code), otp.code_hash)  # confirms `code` is real
 
