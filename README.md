@@ -4,10 +4,10 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 4 (events) complete.** Signup, email verification, login,
-token refresh, and event CRUD (with role/ownership permissions) exist.
-Resend, DRF throttling, event search/filtering, and enrollment are not
-implemented yet.
+**Status: Phase 5 (discovery) complete.** Signup, email verification,
+login, token refresh, event CRUD (with role/ownership permissions), and
+event search/filtering/ordering exist. Resend, DRF throttling, and
+enrollment are not implemented yet.
 
 ## Stack
 
@@ -208,10 +208,35 @@ events only, each with `enrolled_count` (= `seats_taken`) and
 derived purely from the `seats_taken` counter already on `Event` — new
 events naturally show `enrolled_count: 0`.
 
-`GET /api/events/` has no search/filter/custom-ordering support yet —
-that's Phase 5 (Discovery). It currently just returns all events, ordered
-by `starts_at`, through the pagination already configured globally
-(`{count, next, previous, results}`, page size 20).
+#### Discovery: `GET /api/events/` query parameters
+
+| Param | Behaviour |
+|---|---|
+| `q` | `icontains` on `title` **or** `description` |
+| `location` | exact match (not `icontains` — see note below) |
+| `language` | exact match |
+| `starts_after` | `starts_at` strictly after this ISO 8601 datetime |
+| `starts_before` | `starts_at` strictly before this ISO 8601 datetime |
+
+All supplied filters combine with AND. `starts_after`/`starts_before` use
+strict `>`/`<` (an event starting exactly at the boundary is excluded) —
+the literal reading of "after"/"before"; say the word if you want them
+inclusive instead. A malformed `starts_after`/`starts_before` returns a
+clean `400`, not a server error.
+
+`location`/`language` are exact-match, not `icontains`, deliberately: they
+have their own composite indexes (`(location, starts_at)`,
+`(language, starts_at)`) which an exact match can actually use — unlike
+`q`, which is genuine free-text search and can't use a plain B-tree index
+either way (see "Known limitations" below).
+
+Results are ordered `(starts_at < now()) ASC, starts_at ASC` — upcoming
+events first (soonest first), then past events (oldest first) — exactly
+matching the spec's ordering, verified directly against the generated SQL
+(`ORDER BY 13 ASC, starts_at ASC` where column 13 is the `CASE WHEN
+starts_at < now() THEN 1 ELSE 0 END` expression). Pagination is
+`{count, next, previous, results}`, page size 20, same global DRF config
+since Phase 1.
 
 ## Environment variables
 
@@ -266,5 +291,12 @@ namespaced (`apps.accounts`, ...).
   stdout instead of sending it. This is explicitly permitted by the
   assignment and is **development-only** — a real deployment needs a real
   email backend/provider.
+- **`q` search uses `icontains`.** `icontains` on `title`/`description`
+  cannot use a plain B-tree index (there's no leading prefix to seek on)
+  and will degrade on a large `Event` table — unlike `location`/`language`,
+  which are exact-match specifically so they *can* use their composite
+  indexes. A `pg_trgm` GIN index or Postgres full-text search would be the
+  production answer; deliberately not added here to keep the assignment
+  compact.
 - Further limitations will be added here as later phases introduce the
-  behaviour they apply to (e.g. search filtering).
+  behaviour they apply to.

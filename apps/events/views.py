@@ -1,5 +1,6 @@
 from rest_framework import generics, permissions, viewsets
 
+from .filters import EventFilterSerializer, filter_events, order_upcoming_first
 from .models import Event
 from .permissions import IsEventOwner, IsFacilitator
 from .serializers import EventSerializer, FacilitatorEventSerializer
@@ -10,14 +11,22 @@ class EventViewSet(viewsets.ModelViewSet):
 
     list/retrieve: any authenticated user. create: facilitator only.
     update (PATCH only — no PUT, per spec)/destroy: the owning facilitator
-    only. No filtering, custom ordering, or pagination customization yet
-    — that's Phase 5 (Discovery); this ships list/retrieve bare, on top of
-    the pagination already configured globally.
+    only. list supports q/location/language/starts_after/starts_before
+    filtering and upcoming-first ordering (see filters.py); pagination
+    uses the shape/page-size already configured globally.
     """
 
-    queryset = Event.objects.all()
     serializer_class = EventSerializer
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        queryset = Event.objects.all()
+        if self.action == "list":
+            filters = EventFilterSerializer(data=self.request.query_params)
+            filters.is_valid(raise_exception=True)
+            queryset = filter_events(queryset, filters.validated_data)
+            queryset = order_upcoming_first(queryset)
+        return queryset
 
     def get_permissions(self):
         if self.action == "create":
