@@ -4,13 +4,13 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 6 (enrollment lifecycle) and Phase 3b (resend + DRF
-throttling) both complete** — done out of the phase-plan's numeric order,
-at explicit direction. Signup, email verification, login, resend, token
-refresh, DRF throttling, event CRUD, event search/filtering/ordering, and
-enroll/cancel/enrollment-listing all exist. Enroll's capacity check is
-**deliberately naive** in this phase (see "Enrollment" below) — the
-concurrency-safe version is Phase 7.
+**Status: Phase 7 (concurrency) complete**, along with every earlier
+phase through Phase 6 (Phase 3b was done out of the phase-plan's numeric
+order, at explicit direction). Enroll/cancel now correctly serialize
+capacity checks under real concurrency — see "Enrollment" below and
+`DEBUGGING.md` for the actual race this replaced and how it was found.
+Only Phase 8 (seed data, exception-shape normalization, final polish)
+remains.
 
 ## Stack
 
@@ -270,10 +270,9 @@ violation (wrong role on create, non-owner on update/delete).
 `GET /api/facilitator/events/` returns the requesting facilitator's own
 events only, each with `enrolled_count` (= `seats_taken`) and
 `available_seats` (`capacity - seats_taken`, or `null` when `capacity` is
-`null`) — both derived from the `seats_taken` counter on `Event`. As of
-Phase 6, enroll/cancel do **not** update `seats_taken` yet (see
-"Enrollment" below), so this counter and these two fields stay `0`/
-`capacity` regardless of actual enrollments until Phase 7.
+`null`) — both derived from the `seats_taken` counter on `Event`, which
+enroll/cancel now keep accurate under real concurrency (see "Enrollment"
+below).
 
 #### Discovery: `GET /api/events/` query parameters
 
@@ -319,20 +318,33 @@ an active enrollment for this event. `409`
 `{"detail": "Event is full", "code": "event_full"}` (exact spec wording)
 if `capacity` is set and already met.
 
-**⚠️ Capacity checking is deliberately naive in this phase** (Phase 6, per
-spec): it counts active `Enrollment` rows and compares against `capacity`,
-with no locking and no transaction around the check-then-act. This is a
-genuine, exploitable race under concurrent requests — intentionally left
-that way so Phase 7 (Challenge A) can demonstrate and then fix it with
-`select_for_update()` and a maintained `seats_taken` counter. **Do not
-rely on this endpoint enforcing capacity correctly yet.**
+**Capacity checking is concurrency-safe.** Enroll opens
+`transaction.atomic()` and immediately takes
+`Event.objects.select_for_update()` on the event row, so every concurrent
+enroll/cancel attempt for the same event is serialized: capacity is
+checked against `Event.seats_taken` (not a live row count), the
+`Enrollment` row is created, and `seats_taken` is incremented — all inside
+that same locked transaction. Verified under genuine concurrency, not just
+assumed: `apps/enrollments/tests/test_concurrency.py` (Challenge A) runs 5
+seekers concurrently for 1 remaining seat via `TransactionTestCase` +
+`ThreadPoolExecutor`, and a manual test against a live server with 5 real
+concurrent `curl` processes showed the identical result — exactly 1
+`201`, four `409 event_full`, `seats_taken` landing at exactly the
+capacity. Phase 6's naive first version (counted active rows, no lock) is
+the subject of a full red→green writeup in `DEBUGGING.md`, including the
+actual race numbers it produced.
+
+Deployed instances with pre-existing `Enrollment` data get `seats_taken`
+backfilled from the real active-enrollment count by a data migration
+(`enrollments/migrations/0002_backfill_seats_taken.py`) before this
+locking takes effect, so the counter never starts out lying.
 
 **Cancel** — `200`, mutates the existing active row in place
 (`status="canceled"`, `canceled_at` set) — it does **not** create a new
 row and does **not** delete anything. `404` `no_active_enrollment` if the
-seeker has no active enrollment for this event. Also naive in this phase:
-no lock, and (deliberately, to stay consistent with naive enroll never
-incrementing it — see `DECISIONS.md`) does not touch `seats_taken` either.
+seeker has no active enrollment for this event. Uses the identical
+locking pattern as enroll (same event row lock, same transaction),
+decrementing `seats_taken` via `F("seats_taken") - 1`.
 
 **Re-enrolling** (enroll → cancel → enroll again) always **creates a new
 row** rather than reviving the canceled one — verified by a dedicated
@@ -390,9 +402,8 @@ apps/common/          shared, HTTP-layer-independent pieces: the coded
                      API exceptions used by accounts and enrollments
 apps/accounts/       users, profiles, email OTP, signup/verify/login/refresh
 apps/events/         Event model, CRUD, discovery, enroll/cancel views
-apps/enrollments/     Enrollment model, permissions, naive enroll/cancel
-                     logic, enrollment listing (seats_taken locking is
-                     Phase 7)
+apps/enrollments/     Enrollment model, permissions, concurrency-safe
+                     enroll/cancel logic, enrollment listing
 ```
 
 `apps/` is a plain namespace directory (not a Django app itself) so app
