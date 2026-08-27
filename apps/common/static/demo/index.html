@@ -148,6 +148,16 @@
   .callout code {
     background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 12px;
   }
+  .demoAccounts { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .demoFillBtn {
+    display: block; width: 100%; text-align: left; padding: 7px 10px;
+    border: 1px solid #bfdbfe; background: #fff; border-radius: 7px;
+    font-size: 12px; font-family: inherit; color: #1e40af; cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .demoFillBtn:hover { background: #eff6ff; }
+  .demoFillBtn.active { border-color: var(--accent); background: #eef2ff; font-weight: 600; }
+  .demoFillBtn code { background: rgba(79,70,229,.08); }
   .otpInput input { letter-spacing: 4px; font-size: 18px; text-align: center; font-weight: 600; }
   .linkbtn { background: none; border: none; color: var(--accent); font-size: 13px; cursor: pointer; padding: 0; }
   .linkbtn:disabled { color: var(--muted); cursor: default; }
@@ -285,9 +295,19 @@
         <p class="sub">Fastest way in: use the seeded demo account below — already
           verified, no email step needed.</p>
         <div class="callout info">
-          <b>Demo account (prefilled below):</b><br>
-          <code id="demoEmailLabel"></code> / <code id="demoPasswordLabel"></code>
-          &nbsp;— created by <code>manage.py seed_demo</code>, see README.
+          <b>Demo accounts</b> — password <code id="demoPasswordLabel"></code> for
+          both, created by <code>manage.py seed_demo</code> (see README). Prefilled
+          below is <b id="demoActiveRoleLabel"></b>; click the other to switch:
+          <div class="demoAccounts">
+            <button type="button" class="demoFillBtn active" id="demoFillSeeker"
+              data-email="seeker12.demo@example.com" data-role="Seeker">
+              Seeker · <code>seeker12.demo@example.com</code>
+            </button>
+            <button type="button" class="demoFillBtn" id="demoFillFacilitator"
+              data-email="facilitator1.demo@example.com" data-role="Facilitator">
+              Facilitator · <code>facilitator1.demo@example.com</code>
+            </button>
+          </div>
         </div>
         <form id="loginForm" class="authForm">
           <div class="field"><label>Email</label><input type="email" name="email" required></div>
@@ -430,21 +450,30 @@
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
-  // ---- demo account ---------------------------------------------------
-  // seeker12.demo@example.com is deliberately picked: it's one of the two
-  // seed_demo seekers (11/12) that aren't already enrolled in anything, so
-  // logging in with it and clicking Enroll always succeeds cleanly for a
-  // first-time walkthrough. Password matches DEMO_PASSWORD in
-  // apps/*/management/commands/seed_demo.py — update both together if
-  // either ever changes.
+  // ---- demo accounts ----------------------------------------------------
+  // seeker12.demo@example.com is the DEFAULT prefilled account (primary
+  // demo path): it's one of the two seed_demo seekers (11/12) that aren't
+  // already enrolled in anything, so logging in with it and clicking
+  // Enroll always succeeds cleanly for a first-time walkthrough.
+  // facilitator1.demo@example.com is offered alongside it for testing
+  // create/edit/delete-event and "My events" — every seed_demo account
+  // shares one password. Update DEMO_PASSWORD here to match
+  // apps/*/management/commands/seed_demo.py if that one ever changes.
 
-  var DEMO_SEEKER_EMAIL = "seeker12.demo@example.com";
-  var DEMO_SEEKER_PASSWORD = "DemoPass123!";
+  var DEMO_PASSWORD = "DemoPass123!";
 
-  $("#demoEmailLabel").textContent = DEMO_SEEKER_EMAIL;
-  $("#demoPasswordLabel").textContent = DEMO_SEEKER_PASSWORD;
-  $("#loginForm [name=email]").value = DEMO_SEEKER_EMAIL;
-  $("#loginForm [name=password]").value = DEMO_SEEKER_PASSWORD;
+  function fillDemoAccount(button) {
+    $("#loginForm [name=email]").value = button.dataset.email;
+    $("#loginForm [name=password]").value = DEMO_PASSWORD;
+    $$(".demoFillBtn").forEach(function (b) { b.classList.toggle("active", b === button); });
+    $("#demoActiveRoleLabel").textContent = button.dataset.role;
+  }
+
+  $("#demoPasswordLabel").textContent = DEMO_PASSWORD;
+  $$(".demoFillBtn").forEach(function (btn) {
+    btn.addEventListener("click", function () { fillDemoAccount(btn); });
+  });
+  fillDemoAccount($("#demoFillSeeker")); // default: seeker, prefilled on load
 
   // ---- settings -------------------------------------------------------
 
