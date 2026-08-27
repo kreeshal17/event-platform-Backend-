@@ -551,6 +551,19 @@ Fargate, App Runner, or any other platform that runs a single container/
 process — you're deploying one thing, not a frontend and a backend
 separately.
 
+**[DEPLOY.md](DEPLOY.md) is the concrete, tested walkthrough** — a
+`Dockerfile` + `docker-compose.prod.yml` running the app, Postgres, and
+Redis together as three containers on a single AWS EC2 instance (chosen
+over App Runner/ECS specifically because those only run the web
+container — Postgres/Redis would need RDS + ElastiCache in a VPC, three
+managed services instead of one box running the compose file this
+project already has). Every step in it — build, migrate, collectstatic,
+`seed_demo`, the actual HTTP requests — was run for real against an
+isolated container stack before being written down, not just described.
+
+The platform-agnostic shape, if you're deploying somewhere other than
+that Docker/EC2 path:
+
 ```bash
 pip install -r requirements.txt
 

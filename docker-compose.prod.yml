@@ -1,0 +1,52 @@
+# Production stack: app + Postgres + Redis together on one host (see
+# DEPLOY.md). This is a separate file from docker-compose.yml on
+# purpose — local dev runs `manage.py runserver` directly against
+# db/redis, not a containerized app, and this file doesn't touch that
+# workflow at all.
+services:
+  db:
+    image: postgres:16
+    container_name: events_platform_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - events_platform_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not exposed to the host: only "web", over the internal compose
+    # network, needs to reach this.
+
+  redis:
+    image: redis:7
+    container_name: events_platform_redis
+    restart: unless-stopped
+    volumes:
+      - events_platform_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    container_name: events_platform_web
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "80:8000"
+
+volumes:
+  events_platform_pgdata:
+  events_platform_redisdata:
