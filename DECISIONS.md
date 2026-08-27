@@ -518,3 +518,100 @@ ordering) and gets substantially extended in Phase 5 rather than being
 complete on arrival. In exchange, the API is usable and testable
 end-to-end after Phase 4 alone, and Phase 5 is a pure enhancement of an
 existing endpoint rather than its first appearance.
+
+## Decision: location/language filters are exact-match, not icontains
+
+### Problem / Ambiguity
+
+The spec names `q` explicitly as `icontains` on title/description, but
+says only "location, language" for the other two text filters, with no
+lookup type specified either way.
+
+### Options Considered
+
+- `icontains` on `location`/`language` too, for consistency with `q` and
+  more forgiving matching.
+- Exact match on `location`/`language`.
+
+### Choice
+
+Exact match. `Event` has composite indexes on `(location, starts_at)` and
+`(language, starts_at)` specifically so filtering by these fields can use
+an index — a plain B-tree index only helps an exact-match (or prefix)
+lookup, not `icontains` (which needs a leading wildcard). Using
+`icontains` here would silently defeat the purpose of those two indexes,
+the same way `q`'s `icontains` already can't use any index (documented as
+a known limitation). `q` is genuine free-text search over prose fields;
+`location`/`language` are closer to enumerable, structured values a
+frontend would populate from a dropdown/known list.
+
+### Trade-off
+
+A client must send back `location`/`language` exactly as stored
+(including case) — no partial or case-insensitive matching. In exchange,
+these two filters actually benefit from the indexes the spec asked for,
+rather than defining indexes that filtering never uses.
+
+## Decision: starts_after/starts_before use strict inequality
+
+### Problem / Ambiguity
+
+The spec names `starts_after`/`starts_before` as filters without saying
+whether an event starting exactly at the boundary value should be
+included.
+
+### Options Considered
+
+- Inclusive bounds (`starts_at__gte`/`starts_at__lte`).
+- Strict bounds (`starts_at__gt`/`starts_at__lt`), matching the literal
+  English meaning of "after" and "before".
+
+### Choice
+
+Strict `>`/`<`. "Starts after X" most literally excludes an event whose
+`starts_at` equals `X` exactly; "starts before X" likewise excludes one
+starting exactly at `X`.
+
+### Trade-off
+
+A client filtering for events "after 9am" won't see an event starting at
+exactly 9:00:00 — they'd need `starts_after=08:59:59` or similar to
+include it, which may not be the intuitive expectation for a date-range
+picker. Flagged explicitly (README and here) since this is a genuine,
+low-stakes judgment call that's easy to reverse if inclusive bounds are
+actually wanted.
+
+## Decision: query params validated through a serializer, not parsed ad hoc
+
+### Problem / Ambiguity
+
+`starts_after`/`starts_before` need to become real `datetime` values to
+filter on. Passing a raw, unvalidated query-string value straight into a
+queryset `.filter(starts_at__gt=raw_string)` lets Django's own date
+parsing fail deep inside queryset evaluation on a malformed value, which
+risks surfacing as an unhandled `500` rather than a clean validation
+error.
+
+### Options Considered
+
+- Read `request.query_params` directly and filter with the raw strings,
+  relying on whatever Django's ORM does with an unparseable date.
+- Validate all query params up front through a dedicated DRF serializer
+  (`EventFilterSerializer`), and only build the queryset from its already
+  -parsed, already-typed `validated_data`.
+
+### Choice
+
+`EventFilterSerializer`, called with `raise_exception=True` inside
+`get_queryset()` before any filtering happens. This mirrors how every
+other endpoint in this codebase validates input — through a serializer,
+never trusting raw request data directly — and gives a malformed
+`starts_after`/`starts_before` the same clean `400` shape as any other
+validation error, verified with a dedicated test and a live request.
+
+### Trade-off
+
+One extra serializer class for what's "just" filtering. In exchange,
+malformed input to `GET /api/events/` fails the same predictable way as
+malformed input to every `POST`/`PATCH` endpoint in this project, instead
+of being a special case that could 500.
