@@ -198,7 +198,9 @@
   .formGrid .span2 { grid-column: 1 / -1; }
 
   /* ---- toasts ---- */
-  #toasts { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; width: 300px; }
+  /* top clears the sticky header (~52px) instead of overlapping it --
+     toasts share the top-right corner with header content otherwise. */
+  #toasts { position: fixed; top: 68px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; width: 300px; }
   .toast {
     background: #111827; color: #fff; padding: 11px 14px; border-radius: 9px; font-size: 13px;
     box-shadow: 0 8px 20px rgba(0,0,0,.18); animation: slidein .18s ease-out;
@@ -274,13 +276,30 @@
     <!-- step: signup / login tabs -->
     <div id="authTabsStep" class="authCard">
       <div class="authTabs">
-        <button type="button" id="tabSignup" class="active">Sign up</button>
-        <button type="button" id="tabLogin">Log in</button>
+        <button type="button" id="tabLogin" class="active">Log in</button>
+        <button type="button" id="tabSignup">Sign up</button>
       </div>
 
-      <div id="signupPane">
+      <div id="loginPane">
+        <h2>Welcome back</h2>
+        <p class="sub">Fastest way in: use the seeded demo account below — already
+          verified, no email step needed.</p>
+        <div class="callout info">
+          <b>Demo account (prefilled below):</b><br>
+          <code id="demoEmailLabel"></code> / <code id="demoPasswordLabel"></code>
+          &nbsp;— created by <code>manage.py seed_demo</code>, see README.
+        </div>
+        <form id="loginForm" class="authForm">
+          <div class="field"><label>Email</label><input type="email" name="email" required></div>
+          <div class="field"><label>Password</label><input type="password" name="password" required></div>
+          <button class="btn block" type="submit">Log in</button>
+        </form>
+      </div>
+
+      <div id="signupPane" class="hidden">
         <h2>Create an account</h2>
-        <p class="sub">We'll email you a 6-digit code to verify your address.</p>
+        <p class="sub">Secondary path — only needed if you want to test the
+          signup/verification flow itself rather than jump straight to Events.</p>
         <form id="signupForm" class="authForm">
           <div class="field"><label>Email</label><input type="email" name="email" required></div>
           <div class="field"><label>Password</label><input type="password" name="password" required></div>
@@ -291,16 +310,6 @@
           <button class="btn block" type="submit">Sign up</button>
         </form>
       </div>
-
-      <div id="loginPane" class="hidden">
-        <h2>Welcome back</h2>
-        <p class="sub">Log in with your verified account.</p>
-        <form id="loginForm" class="authForm">
-          <div class="field"><label>Email</label><input type="email" name="email" required></div>
-          <div class="field"><label>Password</label><input type="password" name="password" required></div>
-          <button class="btn block" type="submit">Log in</button>
-        </form>
-      </div>
     </div>
 
     <!-- step: verify (shown instead of the tabs step) -->
@@ -308,10 +317,11 @@
       <h2>Check your email</h2>
       <p class="sub">Enter the 6-digit code we sent to <b id="verifyEmailLabel"></b>.</p>
       <div class="callout info">
-        This demo uses Django's <b>console email backend</b> — the code isn't
-        emailed anywhere real, it's printed to the terminal running
-        <code>manage.py runserver</code>. Look for a line like
-        <code>Your verification code is: 123456</code>.
+        The 6-digit code is printed to the Django console (development email
+        backend, per the assignment brief) — check the terminal running
+        <code>manage.py runserver</code> for a line like
+        <code>Your verification code is: 123456</code>. It is never returned by
+        any API response or shown in this UI.
       </div>
       <form id="verifyForm" class="authForm">
         <input type="hidden" name="email">
@@ -419,6 +429,22 @@
 
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  // ---- demo account ---------------------------------------------------
+  // seeker12.demo@example.com is deliberately picked: it's one of the two
+  // seed_demo seekers (11/12) that aren't already enrolled in anything, so
+  // logging in with it and clicking Enroll always succeeds cleanly for a
+  // first-time walkthrough. Password matches DEMO_PASSWORD in
+  // apps/*/management/commands/seed_demo.py — update both together if
+  // either ever changes.
+
+  var DEMO_SEEKER_EMAIL = "seeker12.demo@example.com";
+  var DEMO_SEEKER_PASSWORD = "DemoPass123!";
+
+  $("#demoEmailLabel").textContent = DEMO_SEEKER_EMAIL;
+  $("#demoPasswordLabel").textContent = DEMO_SEEKER_PASSWORD;
+  $("#loginForm [name=email]").value = DEMO_SEEKER_EMAIL;
+  $("#loginForm [name=password]").value = DEMO_SEEKER_PASSWORD;
 
   // ---- settings -------------------------------------------------------
 

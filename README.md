@@ -480,8 +480,36 @@ It's served by Django's own `staticfiles` app (automatic in `DEBUG` mode
 needs no CORS configuration. No build step, no framework, no CDN —
 vanilla HTML/CSS/JS, viewable by opening the file itself.
 
-**The verification step is the one deliberately guided flow.** Signup
-auto-advances straight into a "check your email" screen — email
+### Primary path: log in with a seeded account
+
+**Login is the default tab, and the form is prefilled with a seeded demo
+seeker's credentials** — `seeker12.demo@example.com` / `DemoPass123!`,
+also shown in plain text right above the form. Run `python manage.py
+seed_demo` first (see "Demo data" above), then just click **Log in**: no signup, no
+verification, straight through to events. That account is deliberately
+one of the two seeded seekers with no pre-existing enrollments, so
+Enroll always succeeds cleanly on a first walkthrough.
+
+<img src="docs/demo-login.png" alt="Login screen, prefilled with a seeded demo account" width="520">
+
+From there: filter events (search/location/language)...
+
+<img src="docs/demo-events-filtered.png" alt="Event list filtered by location" width="700">
+
+...enroll, and see it reflected immediately (seat count, toast, and the
+API log all agree)...
+
+<img src="docs/demo-enroll-success.png" alt="Enroll success toast and updated seat count" width="700">
+
+...then check it under "My enrollments":
+
+<img src="docs/demo-my-enrollments.png" alt="My enrollments showing the new enrollment" width="700">
+
+### Secondary path: signup and verification
+
+Sign up and verify-email screens still exist (the **Sign up** tab), for
+exercising that flow specifically rather than as the primary way into the
+app. Signup auto-advances into a "check your email" screen — email
 pre-filled, the code input auto-focused — instead of leaving you to
 re-open a second form. Logging in with an unverified account drops into
 the *same* screen rather than just showing an error, since that actually
@@ -489,17 +517,17 @@ is the next step. A **Resend** link is there too, with a 60-second
 client-side cooldown timer matching the server's own policy (a UX nicety
 only — the server enforces the real cooldown/cap regardless). The moment
 verification succeeds, the page automatically logs you in with the same
-credentials and drops you straight into the app — no separate login step
-needed for a fresh signup.
+credentials and drops you straight into the app.
 
 **The OTP itself is never shown in the UI, on purpose.** No API response
 ever contains the plaintext code (see "Security" throughout this
-project), so there is nothing for the frontend to display — the callout
-on the verify screen just tells you where to actually find it: the
-terminal running `manage.py runserver`, which is where the console email
-backend prints it (`Your verification code is: 123456`). That's a hard
-constraint, not a missing feature — a demo convenience is never worth
-weakening that rule.
+project), so there is nothing for the frontend to display. The verify
+screen's callout instead says exactly where to find it: *"The 6-digit
+code is printed to the Django console (development email backend, per
+the assignment brief)"* — check the terminal running `manage.py
+runserver` for a line like `Your verification code is: 123456`. That's a
+hard constraint, not a missing feature — no demo convenience is worth
+weakening that rule, and none was added to work around it.
 
 Beyond auth, a live request/response log (bottom-right, "API log") shows
 every call's method, URL, status, and JSON body — including rejections,
