@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16
+    container_name: events_platform_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-events_db}
+      POSTGRES_USER: ${DATABASE_USER:-events_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-events_password}
+    ports:
+      # Host port 5433 avoids clashing with any system Postgres on 5432.
+      - "${DATABASE_PORT:-5433}:5432"
+    volumes:
+      - events_platform_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  events_platform_pgdata:
