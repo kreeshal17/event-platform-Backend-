@@ -4,10 +4,12 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 5 (discovery) complete.** Signup, email verification,
-login, token refresh, event CRUD (with role/ownership permissions), and
-event search/filtering/ordering exist. Resend, DRF throttling, and
-enrollment are not implemented yet.
+**Status: Phase 6 (enrollment lifecycle) complete.** Signup, email
+verification, login, token refresh, event CRUD, event search/filtering/
+ordering, and enroll/cancel/enrollment-listing all exist. Enroll's
+capacity check is **deliberately naive** in this phase (see below) — the
+concurrency-safe version is Phase 7. Resend and DRF throttling are not
+implemented yet.
 
 ## Stack
 
@@ -204,9 +206,10 @@ violation (wrong role on create, non-owner on update/delete).
 `GET /api/facilitator/events/` returns the requesting facilitator's own
 events only, each with `enrolled_count` (= `seats_taken`) and
 `available_seats` (`capacity - seats_taken`, or `null` when `capacity` is
-`null`). No `Enrollment` model exists yet (Phase 6), so these are both
-derived purely from the `seats_taken` counter already on `Event` — new
-events naturally show `enrolled_count: 0`.
+`null`) — both derived from the `seats_taken` counter on `Event`. As of
+Phase 6, enroll/cancel do **not** update `seats_taken` yet (see
+"Enrollment" below), so this counter and these two fields stay `0`/
+`capacity` regardless of actual enrollments until Phase 7.
 
 #### Discovery: `GET /api/events/` query parameters
 
@@ -237,6 +240,51 @@ matching the spec's ordering, verified directly against the generated SQL
 starts_at < now() THEN 1 ELSE 0 END` expression). Pagination is
 `{count, next, previous, results}`, page size 20, same global DRF config
 since Phase 1.
+
+### Enrollment
+
+| Method | Path | Access |
+|---|---|---|
+| POST | `/api/events/{id}/enroll/` | seeker only |
+| POST | `/api/events/{id}/cancel/` | seeker only |
+| GET | `/api/enrollments/?scope=upcoming\|past` | seeker only, own rows |
+
+**Enroll** — `201` with the new `Enrollment` row (nesting a short event
+summary) on success. `409` `already_enrolled` if the seeker already has
+an active enrollment for this event. `409`
+`{"detail": "Event is full", "code": "event_full"}` (exact spec wording)
+if `capacity` is set and already met.
+
+**⚠️ Capacity checking is deliberately naive in this phase** (Phase 6, per
+spec): it counts active `Enrollment` rows and compares against `capacity`,
+with no locking and no transaction around the check-then-act. This is a
+genuine, exploitable race under concurrent requests — intentionally left
+that way so Phase 7 (Challenge A) can demonstrate and then fix it with
+`select_for_update()` and a maintained `seats_taken` counter. **Do not
+rely on this endpoint enforcing capacity correctly yet.**
+
+**Cancel** — `200`, mutates the existing active row in place
+(`status="canceled"`, `canceled_at` set) — it does **not** create a new
+row and does **not** delete anything. `404` `no_active_enrollment` if the
+seeker has no active enrollment for this event. Also naive in this phase:
+no lock, and (deliberately, to stay consistent with naive enroll never
+incrementing it — see `DECISIONS.md`) does not touch `seats_taken` either.
+
+**Re-enrolling** (enroll → cancel → enroll again) always **creates a new
+row** rather than reviving the canceled one — verified by a dedicated
+test (Challenge B) that checks exactly two rows exist, with different
+primary keys, the older `canceled` with `canceled_at` set, and the newer
+`enrolled` with `canceled_at` null. History is never deleted and a
+canceled row is never flipped back to `enrolled`.
+
+**Listing** — `GET /api/enrollments/?scope=upcoming|past` (required,
+exactly one of the two) returns *every* `Enrollment` row belonging to the
+requesting seeker — both active and canceled/historical — split by
+whether the related event's `starts_at` is in the future or the past.
+This is a deliberate reading: since Challenge B's whole point is that
+canceled rows are real, permanent history, this endpoint surfaces that
+history rather than silently filtering it down to active rows only. Flag
+if "own rows" was meant to mean "own *active* rows" instead.
 
 ## Environment variables
 
@@ -273,11 +321,13 @@ above.
 
 ```
 config/             Django project (settings, urls, wsgi/asgi)
-apps/common/          shared, HTTP-layer-independent pieces (currently: the
-                     coded API exceptions used by accounts)
+apps/common/          shared, HTTP-layer-independent pieces: the coded
+                     API exceptions used by accounts and enrollments
 apps/accounts/       users, profiles, email OTP, signup/verify/login/refresh
-apps/events/         Event model, CRUD, role/ownership permissions
-apps/enrollments/     enrollment lifecycle (Phase 6+)
+apps/events/         Event model, CRUD, discovery, enroll/cancel views
+apps/enrollments/     Enrollment model, permissions, naive enroll/cancel
+                     logic, enrollment listing (seats_taken locking is
+                     Phase 7)
 ```
 
 `apps/` is a plain namespace directory (not a Django app itself) so app

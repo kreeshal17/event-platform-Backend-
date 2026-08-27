@@ -52,3 +52,31 @@ class EmailNotVerified(APIException):
         "code": "email_not_verified",
     }
     default_code = "email_not_verified"
+
+
+class AlreadyEnrolled(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = {
+        "detail": "You are already enrolled in this event.",
+        "code": "already_enrolled",
+    }
+    default_code = "already_enrolled"
+
+
+class EventFull(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    # Exact wording per spec: {"detail": "Event is full", "code": "event_full"}
+    default_detail = {
+        "detail": "Event is full",
+        "code": "event_full",
+    }
+    default_code = "event_full"
+
+
+class NoActiveEnrollment(APIException):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = {
+        "detail": "You have no active enrollment in this event.",
+        "code": "no_active_enrollment",
+    }
+    default_code = "no_active_enrollment"

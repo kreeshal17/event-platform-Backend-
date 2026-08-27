@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import EventViewSet
+from .views import CancelView, EnrollView, EventViewSet
 
 # Mapped by hand instead of a DRF router: there's exactly one viewset here,
 # and a router would add its own (unwanted) API-root view at this same
@@ -13,4 +13,6 @@ event_detail = EventViewSet.as_view(
 urlpatterns = [
     path("", event_list, name="event-list"),
     path("<int:pk>/", event_detail, name="event-detail"),
+    path("<int:pk>/enroll/", EnrollView.as_view(), name="event-enroll"),
+    path("<int:pk>/cancel/", CancelView.as_view(), name="event-cancel"),
 ]

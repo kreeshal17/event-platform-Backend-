@@ -26,4 +26,5 @@ urlpatterns = [
     # don't overlap (facilitator/events/ vs events/<pk>/).
     path('api/facilitator/events/', FacilitatorEventListView.as_view(), name='facilitator-events'),
     path('api/events/', include('apps.events.urls')),
+    path('api/enrollments/', include('apps.enrollments.urls')),
 ]
