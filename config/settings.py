@@ -13,10 +13,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DJANGO_DEBUG=(bool, False),
+    DJANGO_TESTING=(bool, False),
 )
 # Read .env from the project root if present. In real deployments the
 # environment is expected to be provided by the platform instead.
 environ.Env.read_env(BASE_DIR / ".env")
+
+# Set by manage.py when invoked as `manage.py test`. Forces the cache
+# backend to LocMemCache (see CACHES below) so the suite never depends on a
+# running Redis. Not meant to be set by hand in a real .env.
+TESTING = env("DJANGO_TESTING")
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
@@ -96,6 +102,44 @@ DATABASES = {
 }
 
 
+# Cache (Redis)
+#
+# Redis holds temporary cache and DRF throttle state ONLY. OTP data is never
+# stored here — EmailOTP rows live in PostgreSQL (see apps.accounts, Phase 2+)
+# so a Redis restart/eviction can never grant a user extra OTP attempts or
+# resends.
+#
+# Tests use LocMemCache instead (TESTING is forced True by manage.py for
+# `manage.py test`), so the default suite never requires Redis to be running.
+# Dedicated throttle tests (Phase 3b) opt back into a real Redis connection
+# themselves, against a separate database index, and skip if it's
+# unreachable.
+#
+# IGNORE_EXCEPTIONS is deliberately left unset (default False): if Redis is
+# unreachable at runtime, cache/throttle operations raise instead of
+# silently no-op'ing, so throttling fails loudly rather than quietly letting
+# every request through. See README "Redis" section.
+
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
+
+if TESTING:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -150,6 +194,14 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@events-platform.
 
 
 # Django REST Framework
+#
+# DEFAULT_THROTTLE_RATES below are the env-configurable rates required for
+# login/signup/resend-otp throttling. Nothing uses them yet: no throttle
+# classes are attached to DEFAULT_THROTTLE_CLASSES or to any view, because
+# the views themselves (Phase 2+) don't exist yet. Wiring scoped throttle
+# classes onto the auth views is Phase 3b's job. Rate state, once wired, is
+# stored in the "default" cache above (Redis outside tests, LocMemCache in
+# tests), which is what makes throttling shared across processes/workers.
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -160,6 +212,11 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_RATES": {
+        "auth_login": env("AUTH_LOGIN_RATE", default="10/min"),
+        "auth_signup": env("AUTH_SIGNUP_RATE", default="5/hour"),
+        "auth_resend_otp": env("AUTH_RESEND_OTP_RATE", default="5/hour"),
+    },
 }
 
 

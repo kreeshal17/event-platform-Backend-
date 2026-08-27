@@ -18,5 +18,21 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7
+    container_name: events_platform_redis
+    restart: unless-stopped
+    ports:
+      # Project-local Redis, cache/throttle state only — nothing durable.
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - events_platform_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   events_platform_pgdata:
+  events_platform_redisdata:
