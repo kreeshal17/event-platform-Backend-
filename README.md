@@ -466,10 +466,10 @@ fresh one first.
 ## Demo frontend
 
 A single, dependency-free HTML file (`apps/common/static/demo/index.html`)
-exercises the whole API from a browser — signup, verify, login (with
-automatic refresh-on-401), event search/create/delete, enroll/cancel, and
-"my enrollments"/"my events". With `docker compose up -d` and
-`python manage.py runserver` running, open:
+exercises the whole API from a browser — guided signup/verify/login,
+event search/create/delete, enroll/cancel, and "my enrollments"/"my
+events". With `docker compose up -d` and `python manage.py runserver`
+running, open:
 
 ```
 http://localhost:8000/static/demo/index.html
@@ -477,14 +477,37 @@ http://localhost:8000/static/demo/index.html
 
 It's served by Django's own `staticfiles` app (automatic in `DEBUG` mode
 — see "Known limitations" below), so it's same-origin with the API and
-needs no CORS configuration. A panel on the right logs every request's
-method, URL, status, and JSON body — including rejections — which is
-useful for seeing the API's permission/validation errors directly: the
-UI deliberately doesn't hide any action by role (e.g. a seeker can still
-click "Create event"), it lets the API's own permission checks reject it
-and shows that rejection in the log, rather than duplicating authorization
-logic on the client. It has no build step and no framework — vanilla
-HTML/CSS/JS, viewable by opening the file itself.
+needs no CORS configuration. No build step, no framework, no CDN —
+vanilla HTML/CSS/JS, viewable by opening the file itself.
+
+**The verification step is the one deliberately guided flow.** Signup
+auto-advances straight into a "check your email" screen — email
+pre-filled, the code input auto-focused — instead of leaving you to
+re-open a second form. Logging in with an unverified account drops into
+the *same* screen rather than just showing an error, since that actually
+is the next step. A **Resend** link is there too, with a 60-second
+client-side cooldown timer matching the server's own policy (a UX nicety
+only — the server enforces the real cooldown/cap regardless). The moment
+verification succeeds, the page automatically logs you in with the same
+credentials and drops you straight into the app — no separate login step
+needed for a fresh signup.
+
+**The OTP itself is never shown in the UI, on purpose.** No API response
+ever contains the plaintext code (see "Security" throughout this
+project), so there is nothing for the frontend to display — the callout
+on the verify screen just tells you where to actually find it: the
+terminal running `manage.py runserver`, which is where the console email
+backend prints it (`Your verification code is: 123456`). That's a hard
+constraint, not a missing feature — a demo convenience is never worth
+weakening that rule.
+
+Beyond auth, a live request/response log (bottom-right, "API log") shows
+every call's method, URL, status, and JSON body — including rejections,
+which is useful for seeing the API's permission/validation errors
+directly: the UI deliberately doesn't hide any action by role (e.g. a
+seeker can still click "Create event"), it lets the API's own permission
+checks reject it and shows that rejection in the log and as a toast,
+rather than duplicating authorization logic on the client.
 
 ## Running tests
 

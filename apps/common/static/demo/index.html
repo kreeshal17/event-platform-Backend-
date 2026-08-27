@@ -6,206 +6,364 @@
 <title>Events Platform — API Demo</title>
 <style>
   :root {
-    --border: #ddd;
-    --muted: #666;
-    --bg: #fafafa;
-    --accent: #2563eb;
-    --danger: #b91c1c;
-    --ok: #15803d;
+    --border: #e2e5ea;
+    --muted: #6b7280;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --accent: #4f46e5;
+    --accent-dark: #4338ca;
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+    --ok: #16a34a;
+    --ok-bg: #f0fdf4;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
   }
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     background: var(--bg);
-    color: #111;
+    color: #111827;
+    -webkit-font-smoothing: antialiased;
   }
+  a { color: var(--accent); }
+
   header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    background: #fff;
+    gap: 10px;
+    padding: 12px 20px;
+    background: var(--card);
     border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 20;
   }
-  header h1 { font-size: 16px; margin: 0; margin-right: auto; }
-  header input[type=text] { width: 220px; }
-  main {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 16px;
-    display: grid;
-    gap: 16px;
-  }
-  section {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 16px;
-  }
-  section h2 { font-size: 15px; margin: 0 0 10px; }
-  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  input, select, textarea {
-    padding: 6px 8px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 13px;
-  }
-  textarea { width: 100%; min-height: 50px; }
-  button {
-    padding: 6px 12px;
+  header .brand { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+  header .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .who { font-size: 13px; color: var(--muted); }
+  header .who b { color: #111827; }
+
+  .btn {
+    padding: 7px 14px;
     border: 1px solid var(--accent);
     background: var(--accent);
     color: #fff;
-    border-radius: 4px;
+    border-radius: 7px;
     font-size: 13px;
+    font-weight: 500;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background .12s;
   }
-  button.secondary { background: #fff; color: var(--accent); }
-  button.danger { background: #fff; color: var(--danger); border-color: var(--danger); }
-  button:disabled { opacity: 0.5; cursor: default; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .muted { color: var(--muted); font-size: 12px; }
+  .btn:hover { background: var(--accent-dark); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn.secondary { background: transparent; color: var(--accent); }
+  .btn.secondary:hover { background: #eef2ff; }
+  .btn.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+  .btn.danger:hover { background: var(--danger-bg); }
+  .btn.ghost { background: transparent; color: var(--muted); border-color: transparent; }
+  .btn.ghost:hover { background: #f3f4f6; }
+  .btn.small { padding: 4px 10px; font-size: 12px; }
+  .btn.block { width: 100%; justify-content: center; }
+
+  input, select, textarea {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+    color: #111827;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #c7d2fe; border-color: var(--accent); }
+  textarea { width: 100%; min-height: 60px; resize: vertical; }
+  label { font-size: 12px; font-weight: 600; color: #374151; display: block; margin-bottom: 4px; }
+  .field { display: flex; flex-direction: column; gap: 2px; }
+
+  main { max-width: 880px; margin: 0 auto; padding: 24px 20px 80px; }
   .hidden { display: none !important; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .pill {
-    display: inline-block;
-    padding: 1px 7px;
-    border-radius: 99px;
-    font-size: 11px;
-    background: #eee;
+  .muted { color: var(--muted); }
+  .center { text-align: center; }
+
+  /* ---- auth ---- */
+  #authWrap { max-width: 420px; margin: 40px auto 0; }
+  .authCard {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px 26px;
   }
-  .pill.ok { background: #dcfce7; color: var(--ok); }
-  .pill.full { background: #fee2e2; color: var(--danger); }
+  .authCard h2 { margin: 0 0 4px; font-size: 18px; }
+  .authCard p.sub { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+  .authTabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 3px; margin-bottom: 20px; }
+  .authTabs button {
+    flex: 1; padding: 7px; border: none; background: transparent; border-radius: 6px;
+    font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .authTabs button.active { background: #fff; color: #111827; box-shadow: var(--shadow); }
+  .authForm { display: flex; flex-direction: column; gap: 12px; }
+  .callout {
+    border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5;
+    border: 1px solid; margin-bottom: 16px;
+  }
+  .callout.info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .callout.warn { background: var(--warn-bg); border-color: #fde68a; color: var(--warn); }
+  .callout code {
+    background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 12px;
+  }
+  .otpInput input { letter-spacing: 4px; font-size: 18px; text-align: center; font-weight: 600; }
+  .linkbtn { background: none; border: none; color: var(--accent); font-size: 13px; cursor: pointer; padding: 0; }
+  .linkbtn:disabled { color: var(--muted); cursor: default; }
+
+  /* ---- app ---- */
+  .tabbar { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .tabbar button {
+    padding: 9px 14px; border: none; background: none; font-size: 13px; font-weight: 600;
+    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tabbar button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .toolbar .field { min-width: 140px; }
+
+  .cards { display: grid; gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .card .top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+  .card h3 { margin: 0 0 3px; font-size: 14px; }
+  .card .meta { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .card .desc { font-size: 13px; color: #374151; margin-top: 6px; }
+  .card .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.full { background: var(--danger-bg); color: var(--danger); }
+  .badge.neutral { background: #f3f4f6; color: #374151; }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13px; }
+  .pager { display: flex; align-items: center; gap: 10px; margin-top: 16px; justify-content: center; }
+
+  .createCard { margin-bottom: 18px; }
+  .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .formGrid .span2 { grid-column: 1 / -1; }
+
+  /* ---- toasts ---- */
+  #toasts { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; width: 300px; }
+  .toast {
+    background: #111827; color: #fff; padding: 11px 14px; border-radius: 8px; font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15); animation: slidein .15s ease-out;
+  }
+  .toast.ok { background: #14532d; }
+  .toast.err { background: #7f1d1d; }
+  @keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ---- debug drawer ---- */
+  #logToggle { position: fixed; bottom: 16px; right: 16px; z-index: 30; }
   #debug {
-    position: fixed;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 360px;
-    background: #0b1020;
-    color: #d7e0ff;
-    overflow: auto;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px;
-    padding: 10px;
-    border-left: 1px solid #222;
+    position: fixed; right: -400px; top: 0; bottom: 0; width: 380px;
+    background: #0b1020; color: #d7e0ff; overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+    padding: 16px; border-left: 1px solid #222; transition: right .18s ease; z-index: 25;
   }
-  #debug h2 { color: #fff; font-size: 13px; margin: 0 0 8px; }
+  #debug.open { right: 0; }
+  #debug .hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  #debug h2 { color: #fff; font-size: 13px; margin: 0; }
   #debug pre { white-space: pre-wrap; word-break: break-word; margin: 0 0 14px; }
+  #debug .entry { border-bottom: 1px solid #1f2937; padding-bottom: 10px; margin-bottom: 10px; }
   #debug .status-ok { color: #7ee787; }
   #debug .status-err { color: #ff7b72; }
-  body.with-debug main { margin-right: 376px; }
-  @media (max-width: 800px) {
-    #debug { position: static; width: auto; border-left: none; border-top: 1px solid var(--border); }
-    body.with-debug main { margin-right: auto; }
+  #debug .clearBtn { background: none; border: 1px solid #374151; color: #9ca3af; border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+
+  details.settings { margin-left: 4px; }
+  details.settings summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 16px; }
+  details.settings summary::-webkit-details-marker { display: none; }
+  details.settings .pop {
+    position: absolute; right: 20px; margin-top: 8px; background: #fff; border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: var(--shadow); padding: 12px; width: 260px; z-index: 30;
+  }
+  details.settings .pop label { margin-bottom: 4px; }
+  details.settings .pop input { width: 100%; }
+
+  @media (max-width: 640px) {
+    #debug { width: 100%; right: -100%; }
+    .formGrid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
-<body class="with-debug">
+<body>
 
 <header>
-  <h1>Events Platform — API Demo</h1>
-  <input type="text" id="baseUrl" title="API base URL">
-  <span id="whoami" class="muted">not logged in</span>
-  <button id="logoutBtn" class="secondary hidden">Log out</button>
+  <div class="brand"><span class="dot"></span><h1>Events Platform — Demo</h1></div>
+  <span class="who" id="whoami"></span>
+  <button class="btn ghost small hidden" id="logoutBtn">Log out</button>
+  <details class="settings">
+    <summary title="Settings">⚙</summary>
+    <div class="pop">
+      <label>API base URL</label>
+      <input type="text" id="baseUrl">
+      <p class="muted" style="font-size:11px;margin:8px 0 0">
+        Requests are logged in the API log drawer (bottom-right).
+      </p>
+    </div>
+  </details>
 </header>
 
 <main>
 
-  <section id="authSection">
-    <h2>Auth</h2>
-    <div class="row" style="margin-bottom:10px">
-      <form id="signupForm">
-        <strong style="width:100%">Signup</strong>
-        <input type="email" name="email" placeholder="email" required>
-        <input type="password" name="password" placeholder="password" required>
-        <select name="role"><option value="seeker">seeker</option><option value="facilitator">facilitator</option></select>
-        <button type="submit">Sign up</button>
+  <!-- ============ AUTH ============ -->
+  <div id="authWrap">
+
+    <!-- step: signup / login tabs -->
+    <div id="authTabsStep" class="authCard">
+      <div class="authTabs">
+        <button type="button" id="tabSignup" class="active">Sign up</button>
+        <button type="button" id="tabLogin">Log in</button>
+      </div>
+
+      <div id="signupPane">
+        <h2>Create an account</h2>
+        <p class="sub">We'll email you a 6-digit code to verify your address.</p>
+        <form id="signupForm" class="authForm">
+          <div class="field"><label>Email</label><input type="email" name="email" required></div>
+          <div class="field"><label>Password</label><input type="password" name="password" required></div>
+          <div class="field">
+            <label>I am a…</label>
+            <select name="role"><option value="seeker">Seeker (browse &amp; enroll)</option><option value="facilitator">Facilitator (create events)</option></select>
+          </div>
+          <button class="btn block" type="submit">Sign up</button>
+        </form>
+      </div>
+
+      <div id="loginPane" class="hidden">
+        <h2>Welcome back</h2>
+        <p class="sub">Log in with your verified account.</p>
+        <form id="loginForm" class="authForm">
+          <div class="field"><label>Email</label><input type="email" name="email" required></div>
+          <div class="field"><label>Password</label><input type="password" name="password" required></div>
+          <button class="btn block" type="submit">Log in</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- step: verify (shown instead of the tabs step) -->
+    <div id="verifyStep" class="authCard hidden">
+      <h2>Check your email</h2>
+      <p class="sub">Enter the 6-digit code we sent to <b id="verifyEmailLabel"></b>.</p>
+      <div class="callout info">
+        This demo uses Django's <b>console email backend</b> — the code isn't
+        emailed anywhere real, it's printed to the terminal running
+        <code>manage.py runserver</code>. Look for a line like
+        <code>Your verification code is: 123456</code>.
+      </div>
+      <form id="verifyForm" class="authForm">
+        <input type="hidden" name="email">
+        <div class="field otpInput">
+          <label>Verification code</label>
+          <input type="text" name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required autofocus>
+        </div>
+        <button class="btn block" type="submit">Verify &amp; continue</button>
       </form>
+      <div class="center" style="margin-top:14px">
+        <button type="button" class="linkbtn" id="resendBtn">Resend code</button>
+        <span class="muted" id="resendTimer" style="font-size:12px"></span>
+      </div>
+      <div class="center" style="margin-top:10px">
+        <button type="button" class="linkbtn muted" id="backToAuthBtn">&larr; use a different account</button>
+      </div>
     </div>
-    <div class="row" style="margin-bottom:10px">
-      <form id="verifyForm">
-        <strong style="width:100%">Verify email</strong>
-        <input type="email" name="email" placeholder="email" required>
-        <input type="text" name="otp" placeholder="6-digit code" required>
-        <button type="submit">Verify</button>
-        <button type="button" id="resendBtn" class="secondary">Resend code</button>
+
+  </div>
+
+  <!-- ============ APP ============ -->
+  <div id="appWrap" class="hidden">
+
+    <div class="tabbar">
+      <button type="button" class="tabbtn active" data-tab="browse">Browse events</button>
+      <button type="button" class="tabbtn" data-tab="mine">My enrollments</button>
+      <button type="button" class="tabbtn" data-tab="facilitator">My events</button>
+    </div>
+
+    <!-- Browse -->
+    <section class="panel active" id="panel-browse">
+      <div class="card createCard">
+        <div class="top">
+          <h3 style="margin:0">Create a new event</h3>
+          <button type="button" class="btn secondary small" id="toggleCreateBtn">+ New event</button>
+        </div>
+        <form id="createEventForm" class="formGrid hidden" style="margin-top:12px">
+          <div class="field"><label>Title</label><input type="text" name="title" required></div>
+          <div class="field"><label>Capacity (blank = unlimited)</label><input type="number" name="capacity" min="0"></div>
+          <div class="field"><label>Language</label><input type="text" name="language" value="en" required></div>
+          <div class="field"><label>Location</label><input type="text" name="location" required></div>
+          <div class="field"><label>Starts</label><input type="datetime-local" name="starts_at" required></div>
+          <div class="field"><label>Ends</label><input type="datetime-local" name="ends_at" required></div>
+          <div class="field span2"><label>Description</label><textarea name="description"></textarea></div>
+          <div class="span2"><button class="btn" type="submit">Create event</button></div>
+        </form>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">
+          Any logged-in user can try this — only facilitators are actually allowed to;
+          others will see a 403 in the API log.
+        </p>
+      </div>
+
+      <form id="filterForm" class="toolbar">
+        <div class="field"><label>Search</label><input type="text" name="q" placeholder="title or description"></div>
+        <div class="field"><label>Location</label><input type="text" name="location" placeholder="exact match"></div>
+        <div class="field"><label>Language</label><input type="text" name="language" placeholder="exact match"></div>
+        <button class="btn secondary small" type="submit">Filter</button>
+        <button class="btn ghost small" type="button" id="clearFilterBtn">Clear</button>
       </form>
-    </div>
-    <div class="row">
-      <form id="loginForm">
-        <strong style="width:100%">Login</strong>
-        <input type="email" name="email" placeholder="email" required>
-        <input type="password" name="password" placeholder="password" required>
-        <button type="submit">Log in</button>
-      </form>
-    </div>
-    <p class="muted">The OTP is emailed via the console backend — check the terminal running <code>manage.py runserver</code> for the code. Any role can attempt any action below; the API's own permission checks decide what's actually allowed, and rejections show up in the response panel on the right.</p>
-  </section>
 
-  <section id="appSection" class="hidden">
+      <div class="cards" id="eventsBody"></div>
+      <div class="pager">
+        <button class="btn secondary small" id="prevPageBtn" disabled>&larr; Prev</button>
+        <span class="muted" id="pageInfo" style="font-size:12px"></span>
+        <button class="btn secondary small" id="nextPageBtn" disabled>Next &rarr;</button>
+      </div>
+    </section>
 
-    <h2>Create event (facilitator)</h2>
-    <form id="createEventForm">
-      <input type="text" name="title" placeholder="title" required style="width:180px">
-      <input type="text" name="language" placeholder="language" value="en" style="width:70px">
-      <input type="text" name="location" placeholder="location" style="width:120px">
-      <input type="text" name="capacity" placeholder="capacity (blank = unlimited)" style="width:170px">
-      <br>
-      <input type="datetime-local" name="starts_at" required>
-      <input type="datetime-local" name="ends_at" required>
-      <textarea name="description" placeholder="description"></textarea>
-      <button type="submit">Create event</button>
-    </form>
-  </section>
+    <!-- My enrollments -->
+    <section class="panel" id="panel-mine">
+      <div class="authTabs" style="max-width:240px;margin-bottom:16px">
+        <button type="button" id="scopeUpcomingBtn" class="active">Upcoming</button>
+        <button type="button" id="scopePastBtn">Past</button>
+      </div>
+      <div class="cards" id="enrollmentsBody"></div>
+    </section>
 
-  <section id="eventsSection" class="hidden">
-    <h2>Events</h2>
-    <form id="filterForm" class="row" style="margin-bottom:10px">
-      <input type="text" name="q" placeholder="search title/description">
-      <input type="text" name="location" placeholder="location (exact)">
-      <input type="text" name="language" placeholder="language (exact)">
-      <button type="submit" class="secondary">Filter</button>
-      <button type="button" id="clearFilterBtn" class="secondary">Clear</button>
-    </form>
-    <table>
-      <thead><tr><th>Event</th><th>When / where</th><th>Seats</th><th>Actions</th></tr></thead>
-      <tbody id="eventsBody"></tbody>
-    </table>
-    <div class="row" style="margin-top:8px">
-      <button id="prevPageBtn" class="secondary" disabled>&larr; Prev</button>
-      <button id="nextPageBtn" class="secondary" disabled>Next &rarr;</button>
-      <span id="pageInfo" class="muted"></span>
-    </div>
-  </section>
+    <!-- My events -->
+    <section class="panel" id="panel-facilitator">
+      <p class="muted" style="font-size:12px;margin-top:0">
+        Events you created, with live enrollment counts. Only visible to facilitators —
+        seekers will see a 403 here.
+      </p>
+      <div class="cards" id="myEventsBody"></div>
+    </section>
 
-  <section id="enrollmentsSection" class="hidden">
-    <h2>My enrollments</h2>
-    <div class="row" style="margin-bottom:10px">
-      <button id="scopeUpcomingBtn" class="secondary">Upcoming</button>
-      <button id="scopePastBtn" class="secondary">Past</button>
-    </div>
-    <table>
-      <thead><tr><th>Event</th><th>When</th><th>Status</th></tr></thead>
-      <tbody id="enrollmentsBody"></tbody>
-    </table>
-  </section>
-
-  <section id="myEventsSection" class="hidden">
-    <h2>My events (facilitator)</h2>
-    <table>
-      <thead><tr><th>Event</th><th>When</th><th>Enrolled / available</th></tr></thead>
-      <tbody id="myEventsBody"></tbody>
-    </table>
-  </section>
+  </div>
 
 </main>
 
+<div id="toasts"></div>
+
+<button class="btn ghost small" id="logToggle">API log</button>
 <aside id="debug">
-  <h2>Last response</h2>
+  <div class="hd">
+    <h2>API log</h2>
+    <button class="clearBtn" id="clearLogBtn">Clear</button>
+  </div>
   <div id="debugBody" class="muted">No requests yet.</div>
 </aside>
 
@@ -216,52 +374,48 @@
   var $ = function (sel, root) { return (root || document).querySelector(sel); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
+  // ---- settings -------------------------------------------------------
+
   var baseUrlInput = $("#baseUrl");
   baseUrlInput.value = localStorage.getItem("demo_base_url") || window.location.origin;
   baseUrlInput.addEventListener("change", function () {
     localStorage.setItem("demo_base_url", baseUrlInput.value);
   });
 
-  var state = {
-    access: localStorage.getItem("demo_access") || null,
-    refresh: localStorage.getItem("demo_refresh") || null,
-    email: localStorage.getItem("demo_email") || null,
-    eventsNextUrl: null,
-    eventsPrevUrl: null,
-    enrollScope: "upcoming"
-  };
+  // ---- toasts -----------------------------------------------------------
 
-  function setTokens(access, refresh, email) {
-    state.access = access;
-    state.refresh = refresh;
-    state.email = email || state.email;
-    if (access) { localStorage.setItem("demo_access", access); } else { localStorage.removeItem("demo_access"); }
-    if (refresh) { localStorage.setItem("demo_refresh", refresh); } else { localStorage.removeItem("demo_refresh"); }
-    if (state.email) { localStorage.setItem("demo_email", state.email); }
-    refreshLoginUI();
+  function toast(message, kind) {
+    var el = document.createElement("div");
+    el.className = "toast" + (kind ? " " + kind : "");
+    el.textContent = message;
+    $("#toasts").appendChild(el);
+    setTimeout(function () {
+      el.style.opacity = "0";
+      el.style.transition = "opacity .2s";
+      setTimeout(function () { el.remove(); }, 200);
+    }, 3200);
   }
 
-  function refreshLoginUI() {
-    var loggedIn = !!state.access;
-    $("#whoami").textContent = loggedIn ? state.email : "not logged in";
-    $("#logoutBtn").classList.toggle("hidden", !loggedIn);
-    $("#authSection").classList.toggle("hidden", loggedIn);
-    ["appSection", "eventsSection", "enrollmentsSection", "myEventsSection"].forEach(function (id) {
-      $("#" + id).classList.toggle("hidden", !loggedIn);
-    });
-    if (loggedIn) { loadEvents(); loadEnrollments(); loadMyEvents(); }
-  }
+  // ---- debug drawer -----------------------------------------------------
 
-  $("#logoutBtn").addEventListener("click", function () { setTokens(null, null); });
-
-  // ---- debug panel -------------------------------------------------
+  var debugOpen = false;
+  $("#logToggle").addEventListener("click", function () {
+    debugOpen = !debugOpen;
+    $("#debug").classList.toggle("open", debugOpen);
+  });
+  $("#clearLogBtn").addEventListener("click", function () {
+    $("#debugBody").innerHTML = "<span class=\"muted\">No requests yet.</span>";
+  });
 
   function logResponse(method, url, status, body) {
     var el = $("#debugBody");
+    if (el.querySelector(".muted") && el.children.length === 1) { el.innerHTML = ""; }
     var cls = status >= 200 && status < 300 ? "status-ok" : "status-err";
-    var html = "<div><b class=\"" + cls + "\">" + status + "</b> " + method + " " +
+    var div = document.createElement("div");
+    div.className = "entry";
+    div.innerHTML = "<div><b class=\"" + cls + "\">" + status + "</b> " + method + " " +
       escapeHtml(url) + "</div><pre>" + escapeHtml(JSON.stringify(body, null, 2)) + "</pre>";
-    el.innerHTML = html + el.innerHTML;
+    el.insertBefore(div, el.firstChild);
   }
 
   function escapeHtml(s) {
@@ -270,9 +424,58 @@
     });
   }
 
-  // ---- API helper ----------------------------------------------------
-  // A single fetch wrapper: attaches the bearer token, logs every call
-  // to the debug panel, and retries exactly once through /api/auth/refresh/
+  function errorMessage(data) {
+    if (data && typeof data.detail === "string") return data.detail;
+    if (data && typeof data === "object") {
+      var firstKey = Object.keys(data)[0];
+      if (firstKey) {
+        var v = data[firstKey];
+        return firstKey + ": " + (Array.isArray(v) ? v[0] : v);
+      }
+    }
+    return "Something went wrong.";
+  }
+
+  // ---- state --------------------------------------------------------
+
+  var state = {
+    access: localStorage.getItem("demo_access") || null,
+    refresh: localStorage.getItem("demo_refresh") || null,
+    email: localStorage.getItem("demo_email") || null,
+    pendingPassword: null,   // held only in memory, only to auto-login right after verifying
+    eventsNextUrl: null,
+    eventsPrevUrl: null,
+    enrollScope: "upcoming"
+  };
+
+  function setTokens(access, refresh, email) {
+    state.access = access;
+    state.refresh = refresh;
+    if (email) state.email = email;
+    if (access) { localStorage.setItem("demo_access", access); } else { localStorage.removeItem("demo_access"); }
+    if (refresh) { localStorage.setItem("demo_refresh", refresh); } else { localStorage.removeItem("demo_refresh"); }
+    if (state.email) { localStorage.setItem("demo_email", state.email); }
+    render();
+  }
+
+  function render() {
+    var loggedIn = !!state.access;
+    $("#whoami").innerHTML = loggedIn ? "Logged in as <b>" + escapeHtml(state.email) + "</b>" : "";
+    $("#logoutBtn").classList.toggle("hidden", !loggedIn);
+    $("#authWrap").classList.toggle("hidden", loggedIn);
+    $("#appWrap").classList.toggle("hidden", !loggedIn);
+    if (loggedIn) { loadEvents(); loadEnrollments(); loadMyEvents(); }
+  }
+
+  $("#logoutBtn").addEventListener("click", function () {
+    setTokens(null, null);
+    showAuthTabsStep();
+    toast("Logged out.");
+  });
+
+  // ---- API helper -----------------------------------------------------
+  // A single fetch wrapper: attaches the bearer token, logs every call to
+  // the debug drawer, and retries exactly once through /api/auth/refresh/
   // on a 401 before giving up and forcing logout.
 
   function api(method, path, body, opts) {
@@ -292,19 +495,24 @@
           return api("POST", "/api/auth/refresh/", { refresh: state.refresh }, { noAuth: true, isRetry: true })
             .then(function (refreshResult) {
               if (refreshResult.ok && refreshResult.data.access) {
-                setTokens(refreshResult.data.access, state.refresh);
+                state.access = refreshResult.data.access;
+                localStorage.setItem("demo_access", state.access);
                 return api(method, path, body, Object.assign({}, opts, { isRetry: true }));
               }
               setTokens(null, null);
+              showAuthTabsStep();
+              toast("Your session expired — please log in again.", "err");
               return { ok: false, status: res.status, data: data };
             });
         }
         return { ok: res.ok, status: res.status, data: data };
       });
+    }).catch(function (err) {
+      logResponse(method, path, 0, { detail: String(err) });
+      toast("Network error — is the server running at " + baseUrlInput.value + "?", "err");
+      return { ok: false, status: 0, data: {} };
     });
   }
-
-  // ---- auth forms ------------------------------------------------------
 
   function formToObject(form) {
     var out = {};
@@ -312,30 +520,175 @@
     return out;
   }
 
+  function busy(button, isBusy, busyLabel) {
+    if (!button.dataset.label) button.dataset.label = button.textContent;
+    button.disabled = isBusy;
+    button.textContent = isBusy ? (busyLabel || "Working…") : button.dataset.label;
+  }
+
+  // ================= AUTH FLOW =================
+  //
+  // Sign up -> (auto) Verify step, prefilled + autofocused -> on success,
+  // auto-login with the same credentials -> App. Logging in with an
+  // unverified account also drops into the same Verify step instead of
+  // just showing an error, since that's the actual next step the user
+  // needs. The OTP itself is never shown here — see the callout in the
+  // Verify step for why (never returned by any API response, by design).
+
+  function showAuthTabsStep() {
+    $("#verifyStep").classList.add("hidden");
+    $("#authTabsStep").classList.remove("hidden");
+  }
+
+  function showVerifyStep(email) {
+    $("#authTabsStep").classList.add("hidden");
+    $("#verifyStep").classList.remove("hidden");
+    $("#verifyEmailLabel").textContent = email;
+    $("#verifyForm [name=email]").value = email;
+    $("#verifyForm [name=otp]").value = "";
+    $("#verifyForm [name=otp]").focus();
+    startResendCooldown(60);
+  }
+
+  $("#tabSignup").addEventListener("click", function () { setAuthTab("signup"); });
+  $("#tabLogin").addEventListener("click", function () { setAuthTab("login"); });
+  function setAuthTab(which) {
+    $("#tabSignup").classList.toggle("active", which === "signup");
+    $("#tabLogin").classList.toggle("active", which === "login");
+    $("#signupPane").classList.toggle("hidden", which !== "signup");
+    $("#loginPane").classList.toggle("hidden", which !== "login");
+  }
+
+  $("#backToAuthBtn").addEventListener("click", function () {
+    showAuthTabsStep();
+  });
+
   $("#signupForm").addEventListener("submit", function (e) {
     e.preventDefault();
-    api("POST", "/api/auth/signup/", formToObject(e.target), { noAuth: true });
-  });
-
-  $("#verifyForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    api("POST", "/api/auth/verify-email/", formToObject(e.target), { noAuth: true });
-  });
-
-  $("#resendBtn").addEventListener("click", function () {
-    var email = $("#verifyForm [name=email]").value;
-    api("POST", "/api/auth/resend-otp/", { email: email }, { noAuth: true });
+    var data = formToObject(e.target);
+    var btn = e.target.querySelector("button[type=submit]");
+    busy(btn, true, "Signing up…");
+    api("POST", "/api/auth/signup/", data, { noAuth: true }).then(function (r) {
+      busy(btn, false);
+      if (r.ok) {
+        toast("Account created — check the server console for your code.", "ok");
+        state.pendingPassword = data.password;
+        showVerifyStep(data.email);
+      } else {
+        toast(errorMessage(r.data), "err");
+      }
+    });
   });
 
   $("#loginForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var data = formToObject(e.target);
+    var btn = e.target.querySelector("button[type=submit]");
+    busy(btn, true, "Logging in…");
     api("POST", "/api/auth/login/", data, { noAuth: true }).then(function (r) {
-      if (r.ok) { setTokens(r.data.access, r.data.refresh, data.email); }
+      busy(btn, false);
+      if (r.ok) {
+        toast("Welcome back!", "ok");
+        setTokens(r.data.access, r.data.refresh, data.email);
+      } else if (r.data && r.data.code === "email_not_verified") {
+        toast("That account isn't verified yet.", "err");
+        state.pendingPassword = data.password;
+        showVerifyStep(data.email);
+      } else {
+        toast(errorMessage(r.data), "err");
+      }
     });
   });
 
-  // ---- events ------------------------------------------------------
+  $("#verifyForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var data = formToObject(e.target);
+    var btn = e.target.querySelector("button[type=submit]");
+    busy(btn, true, "Verifying…");
+    api("POST", "/api/auth/verify-email/", data, { noAuth: true }).then(function (r) {
+      if (!r.ok) {
+        busy(btn, false);
+        toast(errorMessage(r.data), "err");
+        $("#verifyForm [name=otp]").select();
+        return;
+      }
+      toast("Email verified! Logging you in…", "ok");
+      if (state.pendingPassword) {
+        api("POST", "/api/auth/login/", { email: data.email, password: state.pendingPassword }, { noAuth: true })
+          .then(function (loginResult) {
+            busy(btn, false);
+            state.pendingPassword = null;
+            if (loginResult.ok) {
+              setTokens(loginResult.data.access, loginResult.data.refresh, data.email);
+            } else {
+              toast("Verified — please log in.", "ok");
+              showAuthTabsStep();
+              setAuthTab("login");
+              $("#loginForm [name=email]").value = data.email;
+            }
+          });
+      } else {
+        busy(btn, false);
+        toast("Verified — please log in.", "ok");
+        showAuthTabsStep();
+        setAuthTab("login");
+        $("#loginForm [name=email]").value = data.email;
+      }
+    });
+  });
+
+  var resendCooldownTimer = null;
+  function startResendCooldown(seconds) {
+    var btn = $("#resendBtn");
+    var label = $("#resendTimer");
+    clearInterval(resendCooldownTimer);
+    var remaining = seconds;
+    btn.disabled = true;
+    label.textContent = "wait " + remaining + "s";
+    resendCooldownTimer = setInterval(function () {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(resendCooldownTimer);
+        btn.disabled = false;
+        label.textContent = "";
+      } else {
+        label.textContent = "wait " + remaining + "s";
+      }
+    }, 1000);
+  }
+
+  $("#resendBtn").addEventListener("click", function () {
+    var email = $("#verifyForm [name=email]").value;
+    api("POST", "/api/auth/resend-otp/", { email: email }, { noAuth: true }).then(function (r) {
+      if (r.ok) {
+        toast("New code sent — check the server console.", "ok");
+        startResendCooldown(60);
+      } else {
+        toast(errorMessage(r.data), "err");
+        // Still an OTP-cooldown response from the server — trust its
+        // timing over our own guess by keeping the button disabled a
+        // beat longer, but don't block forever if something else failed.
+        startResendCooldown(15);
+      }
+    });
+  });
+
+  // ================= APP: TABS =================
+
+  $$(".tabbtn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      $$(".tabbtn").forEach(function (b) { b.classList.remove("active"); });
+      $$(".panel").forEach(function (p) { p.classList.remove("active"); });
+      btn.classList.add("active");
+      $("#panel-" + btn.dataset.tab).classList.add("active");
+    });
+  });
+
+  // ================= EVENTS: BROWSE =================
+
+  $("#toggleCreateBtn").addEventListener("click", function () {
+    $("#createEventForm").classList.toggle("hidden");
+  });
 
   $("#createEventForm").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -343,8 +696,19 @@
     if (data.capacity !== undefined) { data.capacity = parseInt(data.capacity, 10); }
     if (data.starts_at) { data.starts_at = new Date(data.starts_at).toISOString(); }
     if (data.ends_at) { data.ends_at = new Date(data.ends_at).toISOString(); }
+    var btn = e.target.querySelector("button[type=submit]");
+    busy(btn, true, "Creating…");
     api("POST", "/api/events/", data).then(function (r) {
-      if (r.ok) { e.target.reset(); loadEvents(); }
+      busy(btn, false);
+      if (r.ok) {
+        toast("Event created.", "ok");
+        e.target.reset();
+        e.target.classList.add("hidden");
+        loadEvents();
+        loadMyEvents();
+      } else {
+        toast(errorMessage(r.data), "err");
+      }
     });
   });
 
@@ -363,14 +727,21 @@
   }
 
   function loadEvents(query) {
+    var body = $("#eventsBody");
     api("GET", "/api/events/" + (query || "")).then(function (r) {
-      if (!r.ok) return;
-      renderEvents(r.data.results || []);
+      if (!r.ok) { return; }
+      var results = r.data.results || [];
+      if (!results.length) {
+        body.innerHTML = "<div class=\"empty\">No events match. Try clearing filters, or create one above.</div>";
+      } else {
+        body.innerHTML = "";
+        results.forEach(function (ev) { body.appendChild(eventCard(ev, true)); });
+      }
       state.eventsNextUrl = r.data.next;
       state.eventsPrevUrl = r.data.previous;
       $("#nextPageBtn").disabled = !state.eventsNextUrl;
       $("#prevPageBtn").disabled = !state.eventsPrevUrl;
-      $("#pageInfo").textContent = (r.data.count || 0) + " total";
+      $("#pageInfo").textContent = (r.data.count || 0) + " event" + (r.data.count === 1 ? "" : "s");
     });
   }
 
@@ -381,99 +752,154 @@
     if (state.eventsPrevUrl) { loadEvents(pathAndQuery(state.eventsPrevUrl)); }
   });
   function pathAndQuery(fullUrl) {
-    var idx = fullUrl.indexOf("/api/");
+    var idx = fullUrl.indexOf("/api/events/");
     return idx === -1 ? "" : fullUrl.slice(idx).replace("/api/events/", "");
-  }
-
-  function renderEvents(events) {
-    var body = $("#eventsBody");
-    body.innerHTML = "";
-    events.forEach(function (ev) {
-      var full = ev.capacity !== null && ev.seats_taken >= ev.capacity;
-      var tr = document.createElement("tr");
-      tr.innerHTML =
-        "<td><b>" + escapeHtml(ev.title) + "</b><br><span class=\"muted\">" + escapeHtml(ev.description || "") + "</span></td>" +
-        "<td>" + escapeHtml(ev.location) + " &middot; " + escapeHtml(ev.language) + "<br>" +
-          "<span class=\"muted\">" + fmt(ev.starts_at) + " &rarr; " + fmt(ev.ends_at) + "</span></td>" +
-        "<td><span class=\"pill " + (full ? "full" : "ok") + "\">" + ev.seats_taken + (ev.capacity === null ? "" : " / " + ev.capacity) + "</span></td>" +
-        "<td></td>";
-      var actions = tr.lastElementChild;
-
-      var enrollBtn = document.createElement("button");
-      enrollBtn.textContent = "Enroll";
-      enrollBtn.className = "secondary";
-      enrollBtn.addEventListener("click", function () {
-        api("POST", "/api/events/" + ev.id + "/enroll/").then(function (r) { if (r.ok) { loadEvents(); loadEnrollments(); } });
-      });
-      actions.appendChild(enrollBtn);
-
-      var cancelBtn = document.createElement("button");
-      cancelBtn.textContent = "Cancel";
-      cancelBtn.className = "secondary";
-      cancelBtn.addEventListener("click", function () {
-        api("POST", "/api/events/" + ev.id + "/cancel/").then(function (r) { if (r.ok) { loadEvents(); loadEnrollments(); } });
-      });
-      actions.appendChild(cancelBtn);
-
-      var deleteBtn = document.createElement("button");
-      deleteBtn.textContent = "Delete";
-      deleteBtn.className = "danger";
-      deleteBtn.addEventListener("click", function () {
-        api("DELETE", "/api/events/" + ev.id + "/").then(function (r) { if (r.ok) { loadEvents(); loadMyEvents(); } });
-      });
-      actions.appendChild(deleteBtn);
-
-      body.appendChild(tr);
-    });
   }
 
   function fmt(iso) {
     if (!iso) return "";
-    var d = new Date(iso);
-    return d.toLocaleString();
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
   }
 
-  // ---- enrollments ------------------------------------------------------
+  function eventCard(ev, withActions) {
+    var el = document.createElement("div");
+    el.className = "card";
+    var full = ev.capacity !== null && ev.seats_taken >= ev.capacity;
+    var seatsLabel = ev.capacity === null
+      ? ev.seats_taken + " enrolled &middot; unlimited"
+      : ev.seats_taken + " / " + ev.capacity + " seats";
+    el.innerHTML =
+      "<div class=\"top\">" +
+        "<div>" +
+          "<h3>" + escapeHtml(ev.title) + "</h3>" +
+          "<div class=\"meta\">" + escapeHtml(ev.location) + " &middot; " + escapeHtml(ev.language) +
+            "<br>" + fmt(ev.starts_at) + " &rarr; " + fmt(ev.ends_at) + "</div>" +
+        "</div>" +
+        "<span class=\"badge " + (full ? "full" : "ok") + "\">" + seatsLabel + "</span>" +
+      "</div>" +
+      (ev.description ? "<div class=\"desc\">" + escapeHtml(ev.description) + "</div>" : "");
 
-  $("#scopeUpcomingBtn").addEventListener("click", function () { state.enrollScope = "upcoming"; loadEnrollments(); });
-  $("#scopePastBtn").addEventListener("click", function () { state.enrollScope = "past"; loadEnrollments(); });
+    if (withActions) {
+      var actions = document.createElement("div");
+      actions.className = "actions";
+
+      var enrollBtn = document.createElement("button");
+      enrollBtn.className = "btn secondary small";
+      enrollBtn.textContent = "Enroll";
+      enrollBtn.addEventListener("click", function () {
+        busy(enrollBtn, true, "…");
+        api("POST", "/api/events/" + ev.id + "/enroll/").then(function (r) {
+          busy(enrollBtn, false);
+          if (r.ok) { toast("Enrolled!", "ok"); loadEvents(); loadEnrollments(); }
+          else { toast(errorMessage(r.data), "err"); }
+        });
+      });
+      actions.appendChild(enrollBtn);
+
+      var cancelBtn = document.createElement("button");
+      cancelBtn.className = "btn secondary small";
+      cancelBtn.textContent = "Cancel enrollment";
+      cancelBtn.addEventListener("click", function () {
+        busy(cancelBtn, true, "…");
+        api("POST", "/api/events/" + ev.id + "/cancel/").then(function (r) {
+          busy(cancelBtn, false);
+          if (r.ok) { toast("Enrollment canceled.", "ok"); loadEvents(); loadEnrollments(); }
+          else { toast(errorMessage(r.data), "err"); }
+        });
+      });
+      actions.appendChild(cancelBtn);
+
+      var deleteBtn = document.createElement("button");
+      deleteBtn.className = "btn danger small";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", function () {
+        if (!confirm("Delete \"" + ev.title + "\"? This cannot be undone.")) return;
+        busy(deleteBtn, true, "…");
+        api("DELETE", "/api/events/" + ev.id + "/").then(function (r) {
+          busy(deleteBtn, false);
+          if (r.ok) { toast("Event deleted.", "ok"); loadEvents(); loadMyEvents(); }
+          else { toast(errorMessage(r.data), "err"); }
+        });
+      });
+      actions.appendChild(deleteBtn);
+
+      el.appendChild(actions);
+    }
+    return el;
+  }
+
+  // ================= MY ENROLLMENTS =================
+
+  $("#scopeUpcomingBtn").addEventListener("click", function () {
+    state.enrollScope = "upcoming";
+    $("#scopeUpcomingBtn").classList.add("active");
+    $("#scopePastBtn").classList.remove("active");
+    loadEnrollments();
+  });
+  $("#scopePastBtn").addEventListener("click", function () {
+    state.enrollScope = "past";
+    $("#scopePastBtn").classList.add("active");
+    $("#scopeUpcomingBtn").classList.remove("active");
+    loadEnrollments();
+  });
 
   function loadEnrollments() {
+    var body = $("#enrollmentsBody");
     api("GET", "/api/enrollments/?scope=" + state.enrollScope).then(function (r) {
-      var body = $("#enrollmentsBody");
-      body.innerHTML = "";
       if (!r.ok) return;
-      (r.data.results || []).forEach(function (en) {
-        var tr = document.createElement("tr");
-        tr.innerHTML =
-          "<td>" + escapeHtml(en.event.title) + "</td>" +
-          "<td class=\"muted\">" + fmt(en.event.starts_at) + "</td>" +
-          "<td><span class=\"pill " + (en.status === "enrolled" ? "ok" : "") + "\">" + en.status + "</span></td>";
-        body.appendChild(tr);
+      var results = r.data.results || [];
+      if (!results.length) {
+        body.innerHTML = "<div class=\"empty\">No " + state.enrollScope + " enrollments.</div>";
+        return;
+      }
+      body.innerHTML = "";
+      results.forEach(function (en) {
+        var el = document.createElement("div");
+        el.className = "card";
+        el.innerHTML =
+          "<div class=\"top\">" +
+            "<div><h3>" + escapeHtml(en.event.title) + "</h3>" +
+              "<div class=\"meta\">" + escapeHtml(en.event.location) + " &middot; " + fmt(en.event.starts_at) + "</div></div>" +
+            "<span class=\"badge " + (en.status === "enrolled" ? "ok" : "neutral") + "\">" + en.status + "</span>" +
+          "</div>";
+        body.appendChild(el);
       });
     });
   }
 
-  // ---- facilitator's own events ------------------------------------
+  // ================= MY EVENTS (FACILITATOR) =================
 
   function loadMyEvents() {
+    var body = $("#myEventsBody");
     api("GET", "/api/facilitator/events/").then(function (r) {
-      var body = $("#myEventsBody");
+      if (!r.ok) {
+        body.innerHTML = "<div class=\"empty\">Nothing to show (only facilitators have events here).</div>";
+        return;
+      }
+      var results = r.data.results || [];
+      if (!results.length) {
+        body.innerHTML = "<div class=\"empty\">You haven't created any events yet.</div>";
+        return;
+      }
       body.innerHTML = "";
-      if (!r.ok) return;
-      (r.data.results || []).forEach(function (ev) {
-        var tr = document.createElement("tr");
-        tr.innerHTML =
-          "<td>" + escapeHtml(ev.title) + "</td>" +
-          "<td class=\"muted\">" + fmt(ev.starts_at) + "</td>" +
-          "<td>" + ev.enrolled_count + " enrolled, " +
-            (ev.available_seats === null ? "unlimited" : ev.available_seats + " available") + "</td>";
-        body.appendChild(tr);
+      results.forEach(function (ev) {
+        var el = document.createElement("div");
+        el.className = "card";
+        var avail = ev.available_seats === null ? "unlimited seats" : ev.available_seats + " seats left";
+        el.innerHTML =
+          "<div class=\"top\">" +
+            "<div><h3>" + escapeHtml(ev.title) + "</h3>" +
+              "<div class=\"meta\">" + fmt(ev.starts_at) + "</div></div>" +
+            "<span class=\"badge neutral\">" + ev.enrolled_count + " enrolled &middot; " + avail + "</span>" +
+          "</div>";
+        body.appendChild(el);
       });
     });
   }
 
-  refreshLoginUI();
+  render();
 })();
 </script>
 
