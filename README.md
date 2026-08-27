@@ -4,13 +4,13 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 7 (concurrency) complete**, along with every earlier
-phase through Phase 6 (Phase 3b was done out of the phase-plan's numeric
-order, at explicit direction). Enroll/cancel now correctly serialize
-capacity checks under real concurrency — see "Enrollment" below and
-`DEBUGGING.md` for the actual race this replaced and how it was found.
-Only Phase 8 (seed data, exception-shape normalization, final polish)
-remains.
+**Status: all phases complete (1 through 8)** — Phase 3b was done out of
+the phase-plan's numeric order, at explicit direction; every other phase
+followed the plan's order. Identity/OTP, events, discovery, the
+enrollment lifecycle (both concurrency-safe and history-preserving — see
+"Enrollment" below and `DEBUGGING.md`), rate limiting, the global error
+format, demo seed data, and a Postman collection all exist and are
+tested against real PostgreSQL (+ Redis for cache/throttling).
 
 ## Stack
 
@@ -410,6 +410,59 @@ See `.env.example` for the full list. Notable ones:
 `.env` is gitignored; only `.env.example` (with placeholder values) is
 committed. No real secrets are committed anywhere in this repo.
 
+## Demo data
+
+```bash
+python manage.py seed_demo
+```
+
+Creates 2 facilitators, 12 seekers (all pre-verified — no OTP step
+needed to log in with them), and 10 events spanning past and upcoming
+with mixed languages (`en`, `ne`, `hi`, `es`) and locations. Safe to
+re-run: it deletes its own previously-seeded accounts (matched by their
+fixed emails) and everything cascading from them, then recreates
+everything fresh.
+
+**Demo credentials** — every seeded account uses the same password,
+`DemoPass123!`. This is a fixed, published, development-only password for
+locally seeded data; it is not a real secret and nothing meaningful is
+protected by it.
+
+| Emails | Role |
+|---|---|
+| `facilitator1.demo@example.com`, `facilitator2.demo@example.com` | facilitator |
+| `seeker1.demo@example.com` … `seeker12.demo@example.com` | seeker |
+
+Two events are seeded specifically to demonstrate the two challenges:
+
+- **Concurrency demo** (Challenge A): the event titled *"Concurrency
+  Demo: Almost Full Workshop"* has `capacity=10` and exactly 9 active
+  enrollments already — one seat left. `POST /api/events/{id}/enroll/`
+  as several different seekers at once (e.g. `seeker10`–`seeker12`, which
+  aren't already enrolled in it) to see the capacity check hold under
+  real concurrency.
+- **Lifecycle demo** (Challenge B): `seeker10.demo@example.com` already
+  has a completed enroll → cancel → enroll history on the event titled
+  *"Lifecycle Demo: Weekend Photography Walk"* — `GET /api/enrollments/`
+  for that seeker shows the current (re-)enrolled row; the database has
+  two rows for that (event, seeker) pair, the older one canceled.
+
+The command prints the exact event IDs and seat counts it created each
+time it runs, so you don't have to look them up separately.
+
+## Postman collection
+
+[`postman/events-platform.postman_collection.json`](postman/events-platform.postman_collection.json)
+covers every endpoint above, organized into Auth / Events / Enrollment
+folders. Import it, set the `base_url` collection variable if your server
+isn't on `http://localhost:8000`, then run **Login** — its Tests script
+saves the returned tokens into `{{access_token}}`/`{{refresh_token}}`
+collection variables automatically, so every other request just works
+without manual copy/paste. It defaults to logging in as a seeded demo
+facilitator (`seed_demo` above), but you can point `demo_email`/
+`demo_password` at any account, or use Signup/Verify Email to create a
+fresh one first.
+
 ## Running tests
 
 ```bash
@@ -424,8 +477,8 @@ above.
 
 ```
 config/             Django project (settings, urls, wsgi/asgi)
-apps/common/          shared, HTTP-layer-independent pieces: the coded
-                     API exceptions used by accounts and enrollments
+apps/common/          shared pieces: the coded API exceptions, the global
+                     exception handler, the `seed_demo` management command
 apps/accounts/       users, profiles, email OTP, signup/verify/login/refresh
 apps/events/         Event model, CRUD, discovery, enroll/cancel views
 apps/enrollments/     Enrollment model, permissions, concurrency-safe

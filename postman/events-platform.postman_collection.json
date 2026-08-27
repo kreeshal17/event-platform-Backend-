@@ -1,0 +1,235 @@
+{
+  "info": {
+    "name": "Events Platform API",
+    "description": "Signup/OTP verification/login, event CRUD + discovery, and enrollment lifecycle for the Events Platform backend. Set {{base_url}} to your running server (default http://localhost:8000). The Login request auto-saves {{access_token}}/{{refresh_token}} into collection variables via its Tests script, so requests below it can reuse them without manual copy/paste.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "demo_email", "value": "facilitator1.demo@example.com" },
+    { "key": "demo_password", "value": "DemoPass123!" },
+    { "key": "event_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/auth/signup/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new.seeker@example.com\",\n  \"password\": \"a-str0ng-passphrase!\",\n  \"role\": \"seeker\"\n}"
+            },
+            "description": "role must be \"seeker\" or \"facilitator\". The OTP is emailed (console backend -> server stdout in dev), never returned here."
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/auth/verify-email/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new.seeker@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "description": "Copy the 6-digit code from the dev server's console output (the console email backend prints it there)."
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/auth/resend-otp/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new.seeker@example.com\"\n}"
+            },
+            "description": "60s cooldown and 5/hour cap apply (429 otp_resend_cooldown). Invalidates any previously issued code."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/auth/login/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{demo_email}}\",\n  \"password\": \"{{demo_password}}\"\n}"
+            },
+            "description": "Defaults to a seeded demo facilitator (run `python manage.py seed_demo` first). Saves the returned tokens into collection variables for the rest of the collection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', body.access);",
+                  "    pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/auth/refresh/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "List Events (discovery)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/events/?q=django&location=Kathmandu&language=en&starts_after=2026-01-01T00:00:00Z&starts_before=2027-01-01T00:00:00Z&page=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", ""],
+              "query": [
+                { "key": "q", "value": "django", "description": "icontains on title OR description" },
+                { "key": "location", "value": "Kathmandu", "description": "exact match" },
+                { "key": "language", "value": "en", "description": "exact match" },
+                { "key": "starts_after", "value": "2026-01-01T00:00:00Z" },
+                { "key": "starts_before", "value": "2027-01-01T00:00:00Z" },
+                { "key": "page", "value": "1" }
+              ]
+            },
+            "description": "Any authenticated user. All query params optional; remove any you don't need. Ordered upcoming-first (soonest first), then past (oldest first)."
+          }
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/events/{{event_id}}/"
+          }
+        },
+        {
+          "name": "Create Event (facilitator)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/events/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Intro to Postman\",\n  \"description\": \"A hands-on workshop.\",\n  \"language\": \"en\",\n  \"location\": \"Kathmandu\",\n  \"starts_at\": \"2027-03-01T10:00:00Z\",\n  \"ends_at\": \"2027-03-01T12:00:00Z\",\n  \"capacity\": 20\n}"
+            },
+            "description": "Requires a facilitator's access token. capacity may be null for unlimited. seats_taken/created_by are always server-controlled."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.collectionVariables.set('event_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Event (PATCH, owner only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{base_url}}/api/events/{{event_id}}/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Intro to Postman (Updated)\"\n}"
+            },
+            "description": "PATCH only, partial update. PUT is not supported (405). Only the owning facilitator may update."
+          }
+        },
+        {
+          "name": "Delete Event (owner only)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/events/{{event_id}}/"
+          }
+        },
+        {
+          "name": "My Events (facilitator)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/facilitator/events/",
+            "description": "Own events only, each with enrolled_count and available_seats."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Enrollment",
+      "item": [
+        {
+          "name": "Enroll in Event (seeker)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/events/{{event_id}}/enroll/",
+            "description": "201 on success. 409 already_enrolled if already active. 409 {\"detail\": \"Event is full\", \"code\": \"event_full\"} if capacity is met — capacity checking is concurrency-safe (row-locked)."
+          }
+        },
+        {
+          "name": "Cancel Enrollment (seeker)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/events/{{event_id}}/cancel/",
+            "description": "200 on success (mutates the active row, does not delete it). 404 no_active_enrollment if there's nothing active to cancel."
+          }
+        },
+        {
+          "name": "My Enrollments (upcoming)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/enrollments/?scope=upcoming",
+            "description": "scope is required: upcoming or past. Returns all of the seeker's own rows for that scope, active AND canceled/historical."
+          }
+        },
+        {
+          "name": "My Enrollments (past)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": "{{base_url}}/api/enrollments/?scope=past"
+          }
+        }
+      ]
+    }
+  ]
+}
