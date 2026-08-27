@@ -121,6 +121,31 @@ python manage.py runserver
 
 ## API
 
+### Error format
+
+Every error response, from every endpoint, is shaped:
+
+```json
+{"detail": "Human-readable message", "code": "snake_case_code"}
+```
+
+Business-specific codes (`event_full`, `already_enrolled`,
+`no_active_enrollment`, `otp_expired`, `otp_invalid`,
+`otp_attempts_exceeded`, `otp_resend_cooldown`, `email_not_verified`) come
+from dedicated exception classes in `apps/common/exceptions.py` — each one
+already renders in exactly this shape by construction (see that module's
+docstring for how, without needing any global handler). Everything else —
+plain validation errors, `401`/`403`/`404`/`405`/`429` from DRF's own
+built-in exceptions — is normalized into the same shape by the global
+handler in `apps/common/exception_handlers.py`
+(`REST_FRAMEWORK["EXCEPTION_HANDLER"]`), using generic codes:
+`validation_error`, `not_authenticated`, `authentication_failed`,
+`permission_denied`, `not_found`, `method_not_allowed`, `throttled`.
+Validation errors from a serializer with multiple field errors are
+flattened to a single representative message — the granularity of which
+field failed isn't preserved in this shape, since the spec's error format
+is a flat, single `{detail, code}` object.
+
 ### `POST /api/auth/signup/`
 
 Public (no auth required). Body:
@@ -200,10 +225,11 @@ this same endpoint described below.
 Public. Body: `{"email": "...", "password": "..."}`.
 
 `200` with `{"access": "...", "refresh": "..."}` (SimpleJWT tokens) once
-the email is verified. `401` (DRF's stock `AuthenticationFailed`, no
-`code` field yet — Phase 8's global handler normalizes this) for both
-wrong password and unknown email, with an identical body either way, so
-login can't be used to enumerate registered emails. `403`
+the email is verified. `401` `authentication_failed` (DRF's stock
+`AuthenticationFailed`, normalized by the global exception handler — see
+"Error format" below) for both wrong password and unknown email, with an
+identical body either way, so login can't be used to enumerate registered
+emails. `403`
 `email_not_verified` for a correct password on an unverified account —
 checked only *after* the password itself has already checked out, so it's
 never revealed for a wrong password on an unverified account either.
@@ -219,9 +245,9 @@ Public. Body: `{"refresh": "..."}`. SimpleJWT's own stock
 env-configurable, defaulting to `AUTH_LOGIN_RATE=10/min`,
 `AUTH_SIGNUP_RATE=5/hour`, `AUTH_RESEND_OTP_RATE=5/hour`. Throttle state
 lives in the Redis-backed cache (see "Redis" above), so it's shared across
-processes/workers, not per-process. A throttled request gets DRF's stock
-`429` (no `code` field yet, same as login's `401` — Phase 8's global
-handler normalizes DRF's own built-in exception shapes).
+processes/workers, not per-process. A throttled request gets `429`
+`throttled` (DRF's stock `Throttled`, normalized the same way as login's
+`401` above).
 
 This is a genuinely separate layer from resend's own 60s cooldown/5-per-hour
 cap described above: DRF throttling is API abuse protection (how many

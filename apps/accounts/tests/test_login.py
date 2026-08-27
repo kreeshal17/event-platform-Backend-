@@ -68,10 +68,12 @@ class LoginTests(TestCase):
 
         # Wrong password on an unverified account must NOT reveal
         # email_not_verified — it's indistinguishable from any other bad
-        # credentials attempt.
+        # credentials attempt. Since Phase 8's global exception handler,
+        # this now correctly carries a generic "code" too — just never
+        # "email_not_verified".
         response = self._login(email, "not-the-password")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertNotIn("code", response.data)
+        self.assertEqual(response.data["code"], "authentication_failed")
 
     def test_wrong_password_and_unknown_email_are_indistinguishable(self):
         email = "known.user@example.com"

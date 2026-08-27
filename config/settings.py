@@ -240,6 +240,10 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    # Normalizes DRF's own built-in exception shapes into {"detail",
+    # "code"} — apps.common.exceptions' coded exceptions already render
+    # that way on their own and pass through this handler untouched.
+    "EXCEPTION_HANDLER": "apps.common.exception_handlers.custom_exception_handler",
     "DEFAULT_THROTTLE_RATES": _auth_throttle_rates,
 }
 
