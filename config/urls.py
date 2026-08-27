@@ -17,7 +17,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.events.views import FacilitatorEventListView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.accounts.urls')),
+    # Registered before api/events/ only for readability; the two paths
+    # don't overlap (facilitator/events/ vs events/<pk>/).
+    path('api/facilitator/events/', FacilitatorEventListView.as_view(), name='facilitator-events'),
+    path('api/events/', include('apps.events.urls')),
 ]

@@ -4,9 +4,10 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 3a (verification and JWT) complete.** Signup, email
-verification, login, and token refresh exist. Resend, DRF throttling,
-events, and enrollment are not implemented yet.
+**Status: Phase 4 (events) complete.** Signup, email verification, login,
+token refresh, and event CRUD (with role/ownership permissions) exist.
+Resend, DRF throttling, event search/filtering, and enrollment are not
+implemented yet.
 
 ## Stack
 
@@ -175,6 +176,43 @@ never revealed for a wrong password on an unverified account either.
 Public. Body: `{"refresh": "..."}`. SimpleJWT's own stock
 `TokenRefreshView` — no custom behaviour needed here.
 
+### Events
+
+All require authentication (a valid access token).
+
+| Method | Path | Access |
+|---|---|---|
+| GET | `/api/events/` | any authenticated user |
+| GET | `/api/events/{id}/` | any authenticated user |
+| POST | `/api/events/` | facilitator |
+| PATCH | `/api/events/{id}/` | the facilitator who owns the event |
+| DELETE | `/api/events/{id}/` | the facilitator who owns the event |
+| GET | `/api/facilitator/events/` | facilitator, own events only |
+
+`POST`/`PATCH` body: `title`, `description`, `language`, `location`,
+`starts_at`, `ends_at` (both ISO 8601 UTC), `capacity` (integer or `null`
+for unlimited). `seats_taken` and `created_by` are always server-controlled
+— present in responses, ignored if sent in a request body. `PUT` is not
+supported (`405`) — only `PATCH` for partial updates, per spec.
+
+`400` if `ends_at` is not after `starts_at`, or `capacity` is negative —
+enforced both by the serializer (clean `400`) and by database
+`CheckConstraint`s (`event_ends_after_starts`, `event_seats_taken_non_negative`,
+`event_seats_taken_le_capacity`) as a backstop. `403` for a role/ownership
+violation (wrong role on create, non-owner on update/delete).
+
+`GET /api/facilitator/events/` returns the requesting facilitator's own
+events only, each with `enrolled_count` (= `seats_taken`) and
+`available_seats` (`capacity - seats_taken`, or `null` when `capacity` is
+`null`). No `Enrollment` model exists yet (Phase 6), so these are both
+derived purely from the `seats_taken` counter already on `Event` — new
+events naturally show `enrolled_count: 0`.
+
+`GET /api/events/` has no search/filter/custom-ordering support yet —
+that's Phase 5 (Discovery). It currently just returns all events, ordered
+by `starts_at`, through the pagination already configured globally
+(`{count, next, previous, results}`, page size 20).
+
 ## Environment variables
 
 See `.env.example` for the full list. Notable ones:
@@ -213,7 +251,7 @@ config/             Django project (settings, urls, wsgi/asgi)
 apps/common/          shared, HTTP-layer-independent pieces (currently: the
                      coded API exceptions used by accounts)
 apps/accounts/       users, profiles, email OTP, signup/verify/login/refresh
-apps/events/         event model and endpoints (Phase 4+)
+apps/events/         Event model, CRUD, role/ownership permissions
 apps/enrollments/     enrollment lifecycle (Phase 6+)
 ```
 
