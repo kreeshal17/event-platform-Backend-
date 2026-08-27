@@ -274,3 +274,247 @@ variables to document and set correctly) compared to hard-coded values. In
 exchange, operational rate policy can be changed per deployment without a
 code change, and the same mechanism makes it straightforward to loosen or
 disable rates specifically for test environments.
+
+## Decision: Server-generated username
+
+### Problem / Ambiguity
+
+Signup must accept only email, password, and role — no username — but
+`django.contrib.auth.models.User` requires a non-empty, unique `username`,
+and the default user model cannot be swapped or subclassed.
+
+### Options Considered
+
+- Derive the username deterministically from the email (e.g. the local
+  part before `@`).
+- Generate a random, opaque username server-side, unrelated to any
+  user-supplied data.
+
+### Choice
+
+`uuid.uuid4().hex` is generated server-side on every signup and is never
+exposed back to the client (it's not in the signup response and plays no
+role in login, which is by email). Login, verification, and every other
+identity check are keyed on `email`, never `username` — `username` exists
+purely to satisfy `User`'s own constraint.
+
+### Trade-off
+
+A username derived from the email would at least be human-legible in the
+Django admin; a UUID is opaque. In exchange, there's no risk of collisions
+or of the generated value leaking anything about the email (case,
+formatting, local-part reuse) into a field the client never asked to set.
+
+## Decision: Signup duplicate-email race handled at two layers
+
+### Problem / Ambiguity
+
+Case-insensitive email uniqueness is enforced by the partial unique index
+on `LOWER(email)`. Relying on the index alone means a genuine race between
+two concurrent signups for the same email surfaces as an unhandled
+`IntegrityError` — a `500`, not a clean validation error.
+
+### Options Considered
+
+- Rely solely on an application-level pre-check (`User.objects.filter(
+email=...).exists()`) before creating the user.
+- Rely solely on the database index and let a race surface as a `500`.
+- Pre-check for the common case, and also catch `IntegrityError` from the
+  index and turn it into the same `400` response for the rare race.
+
+### Choice
+
+Both layers: `validate_email()` rejects an already-existing email up
+front (the fast path, no race involved), and `serializer.create()` wraps
+user creation in `transaction.atomic()` and catches `IntegrityError`,
+converting a genuine concurrent-signup race into the identical `400`
+response instead of a `500`.
+
+### Trade-off
+
+This is a few extra lines devoted to a narrow race window (two signups for
+the same email landing within the same few milliseconds). In exchange,
+signup never returns an unhandled server error for a case that is fully
+anticipated and already has a defined correct response.
+
+## Decision: Coded API exceptions without the Phase 8 global handler
+
+### Problem / Ambiguity
+
+Verify-email and login need to return specific error codes
+(`otp_expired`, `otp_invalid`, `otp_attempts_exceeded`,
+`email_not_verified`) in the spec's `{"detail", "code"}` shape now, in
+Phase 3a — but the assignment places the global DRF exception handler that
+normalizes error shapes in Phase 8, and building it early would be running
+ahead of the phase plan.
+
+### Options Considered
+
+- Build the Phase 8 global exception handler early, in Phase 3a, so these
+  four errors already render correctly.
+- Construct the `{"detail", "code"}` response body inline, by hand, in
+  each view for each of these four cases.
+- Define `APIException` subclasses per error, with `default_detail` set to
+  the full `{"detail", "code"}` dict, relying on DRF's own default
+  exception handler already returning `exc.detail` verbatim whenever it's
+  a dict.
+
+### Choice
+
+The third option: `apps/common/exceptions.py` defines `OtpExpired`,
+`OtpInvalid`, `OtpAttemptsExceeded`, and `EmailNotVerified`, each an
+`APIException` whose `default_detail` is itself `{"detail": ..., "code":
+...}`. Views simply `raise` them. This was checked directly against DRF's
+installed source (`rest_framework/views.py`), not assumed: the default
+`exception_handler` uses `exc.detail` as the entire response body whenever
+`isinstance(exc.detail, (list, dict))`, so no custom handler is needed for
+these four to render correctly today. Phase 8's global handler still has
+real work to do — normalizing DRF's own *built-in* exception shapes
+(`ValidationError`, `AuthenticationFailed`, `Throttled`, ...) into the same
+shape — but has nothing to retrofit for these.
+
+### Trade-off
+
+This is a slightly less obvious mechanism than either building the
+handler early or writing the dicts inline — a reader has to know that DRF
+special-cases a dict `detail`. In exchange, the four spec-required codes
+work correctly starting in Phase 3a without pulling Phase 8 forward, and
+Phase 8 stays scoped to exactly what's actually left to normalize.
+
+## Decision: Anti-enumeration on login and verify-email
+
+### Problem / Ambiguity
+
+Both endpoints take an `email` and something secret (a password or an
+OTP). A naive implementation that returns a different error for "no such
+email" versus "wrong secret" lets an attacker enumerate which emails are
+registered in the system, one guess at a time.
+
+### Options Considered
+
+- Return distinct errors for "unknown email" vs. "wrong password"/"wrong
+  code" (simpler to implement, leaks registration status).
+- Return an identical response for both cases at each endpoint.
+
+### Choice
+
+Login raises the same `AuthenticationFailed()` — same status, same fixed
+DRF message — whether the email doesn't exist or the password is wrong,
+and only checks (and reveals) `email_not_verified` *after* the password
+has already checked out, so a wrong password on an unverified account
+doesn't leak verification status either. Verify-email folds "no such
+user" and "no active OTP for this email" into the same `otp_invalid` as a
+wrong code. Both are covered by tests asserting the responses are
+byte-identical, not just similarly shaped.
+
+### Trade-off
+
+Genuine users get slightly less specific error messages (a real user who
+mistypes their email gets the same message as a wrong password, not "no
+such account"). In exchange, neither endpoint can be used to enumerate
+which emails have signed up.
+
+## Decision: Plain IntegerField for capacity and seats_taken
+
+### Problem / Ambiguity
+
+`capacity` and `seats_taken` are logically non-negative, and Django's
+`PositiveIntegerField`/`PositiveSmallIntegerField` would express that
+directly. Django 4.1+ also auto-generates its own implicit database CHECK
+constraint for those field types.
+
+### Options Considered
+
+- `PositiveIntegerField` for both, relying on Django's implicit
+  constraints for non-negativity, on top of the spec's three named
+  `CheckConstraint`s.
+- Plain `IntegerField` for both, so the three named constraints
+  (`event_ends_after_starts`, `event_seats_taken_non_negative`,
+  `event_seats_taken_le_capacity`) are the only mechanism enforcing
+  validity.
+
+### Choice
+
+Plain `IntegerField`. The spec names three specific constraints as the
+mechanism for enforcing Event validity; adding `PositiveIntegerField` on
+top would mean two separate, unnamed-vs-named mechanisms doing
+overlapping work, and an extra auto-generated constraint in every
+migration that isn't one of the three the spec describes.
+
+### Trade-off
+
+The model class alone doesn't self-document "these are always
+non-negative" the way `PositiveIntegerField` would. In exchange, the
+three `CheckConstraint`s are unambiguously the complete, sole source of
+truth for what values are valid — matching what's documented and tested.
+
+## Decision: enrolled_count and available_seats sourced from seats_taken
+
+### Problem / Ambiguity
+
+`GET /api/facilitator/events/` needs to show how full each event is, but
+Phase 4 (Events) is explicitly built before Phase 6 (Enrollment) — no
+`Enrollment` model exists yet at all.
+
+### Options Considered
+
+- Defer `enrolled_count`/`available_seats` until Phase 6, once
+  `Enrollment` exists, and ship the facilitator endpoint without them in
+  Phase 4.
+- Compute both directly from the `seats_taken` counter that already lives
+  on `Event` as of Phase 4's own model definition.
+
+### Choice
+
+`enrolled_count` is `Event.seats_taken` (renamed for the API), and
+`available_seats` is `capacity - seats_taken` (or `null` when `capacity`
+is `null`) — both computed with no reference to `Enrollment` at all. This
+is consistent with why `seats_taken` is part of the Phase 4 Event model in
+the first place, rather than being introduced later alongside
+`Enrollment`.
+
+### Trade-off
+
+Until Phase 6/7 actually wire up enrollment to move `seats_taken`, every
+event's `enrolled_count` is `0` regardless of anything else — there's
+nothing yet that increments it. In exchange, the facilitator endpoint's
+full shape (including these two fields) ships in Phase 4 as specified,
+with no dependency on a model two phases away.
+
+## Decision: Phase 4 ships bare list/retrieve; Phase 5 adds filtering and ordering
+
+### Problem / Ambiguity
+
+The Event Endpoints table lists `GET /api/events/` and `GET
+/api/events/{id}/` as "any authenticated" with no phase attached, while
+the phase plan separately names Phase 4 "facilitator CRUD" and Phase 5
+"Discovery," and Phase 5's own description names `GET /api/events/` with
+its filters as that phase's deliverable — leaving it unclear whether the
+list/detail endpoints exist at all before Phase 5.
+
+### Options Considered
+
+- Phase 4 ships only the facilitator-side endpoints (create/update/delete
+  own event, list own events); `GET /api/events/` and `GET
+  /api/events/{id}/` don't exist until Phase 5.
+- Phase 4 ships a complete `EventViewSet` (list, retrieve, create, update,
+  destroy) with list left bare — default pagination, simple `starts_at`
+  ordering, no filters — and Phase 5 adds `q`/`location`/`language`/
+  `starts_after`/`starts_before` and the upcoming-first ordering on top.
+
+### Choice
+
+The second option, confirmed explicitly before implementing Phase 4
+rather than assumed. Leaving `create`/`update`/`destroy` usable while
+there was no way to list or fetch a single event by id would have been an
+unusual, impractical partial API, and "role permissions" (a stated Phase 4
+deliverable) needs read endpoints to attach an "any authenticated" rule
+to in the first place.
+
+### Trade-off
+
+Phase 4's list endpoint is functionally thin (no search, no meaningful
+ordering) and gets substantially extended in Phase 5 rather than being
+complete on arrival. In exchange, the API is usable and testable
+end-to-end after Phase 4 alone, and Phase 5 is a pure enhancement of an
+existing endpoint rather than its first appearance.
