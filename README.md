@@ -4,7 +4,9 @@ A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
 
-**Status: Phase 1 (scaffold) complete.** No API endpoints exist yet.
+**Status: Phase 2 (identity and OTP issuance) complete.** Signup is the only
+endpoint so far. Email verification, login, resend, events, and enrollment
+are not implemented yet.
 
 ## Stack
 
@@ -108,6 +110,36 @@ python manage.py migrate
 python manage.py runserver
 ```
 
+## API
+
+### `POST /api/auth/signup/`
+
+Public (no auth required). Body:
+
+```json
+{"email": "seeker@example.com", "password": "a-strong-password", "role": "seeker"}
+```
+
+`role` must be `"seeker"` or `"facilitator"`. A `username` field in the
+request body, if present, is ignored — Django's `User` requires one, but
+the client never supplies it; it's generated server-side (a UUID) and never
+exposed back to the client.
+
+On success (`201`), creates the `User` (email lowercased/normalized) and a
+`Profile` with `is_email_verified=False`, and issues + emails a 6-digit OTP.
+The OTP is never present in the response, in application logs, or anywhere
+but its HMAC-SHA256 hash in the database. Response body:
+
+```json
+{"email": "seeker@example.com", "role": "seeker", "is_email_verified": false, "detail": "..."}
+```
+
+`400` on invalid role, weak password (Django's configured password
+validators), or an email that already exists (case-insensitively) — backed
+by both an application-level check and the database's partial unique index
+on `LOWER(email)`, so this holds even under a signup race on the same
+email.
+
 ## Environment variables
 
 See `.env.example` for the full list. Notable ones:
@@ -143,7 +175,7 @@ above.
 
 ```
 config/             Django project (settings, urls, wsgi/asgi)
-apps/accounts/       users, profiles, email OTP (Phase 2+)
+apps/accounts/       users, profiles, email OTP, signup (Phase 2 so far)
 apps/events/         event model and endpoints (Phase 4+)
 apps/enrollments/     enrollment lifecycle (Phase 6+)
 ```
