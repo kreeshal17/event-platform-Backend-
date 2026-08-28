@@ -12,12 +12,13 @@ enrollment lifecycle (both concurrency-safe and history-preserving — see
 format, demo seed data, and a Postman collection all exist and are
 tested against real PostgreSQL (+ Redis for cache/throttling).
 
-**Live demo:** deployed on a single AWS EC2 instance —
-[http://32.237.58.194/static/demo/index.html](http://32.237.58.194/static/demo/index.html)
+**Live demo:** deployed on a single AWS EC2 instance, over real HTTPS
+(free Let's Encrypt certificate via Caddy — see "Deployment" below) —
+[https://events-platform.duckdns.org](https://events-platform.duckdns.org)
 (the demo frontend; use either seeded demo account button, no signup
-needed). API root is at `http://32.237.58.194/api/`. This is a personal
-EC2 box kept up for grading, not a permanent service — see "Known
-limitations / notes" for what it deliberately doesn't do (HTTPS, etc.).
+needed). API root is at `https://events-platform.duckdns.org/api/`. This
+is a personal EC2 box kept up for grading, not a permanent service — see
+"Known limitations / notes" for what it deliberately doesn't do.
 
 ## Architecture summary
 
@@ -649,9 +650,10 @@ project already has). Every step in it — build, migrate, collectstatic,
 isolated container stack before being written down, not just described.
 This isn't just a walkthrough that was followed once and abandoned —
 it's what's actually running at
-[http://32.237.58.194/static/demo/index.html](http://32.237.58.194/static/demo/index.html)
+[https://events-platform.duckdns.org](https://events-platform.duckdns.org)
 right now, on a real EC2 instance in `ap-southeast-2`, seeded with the
-same `seed_demo` data described above.
+same `seed_demo` data described above, with real HTTPS in front of it
+too (see "Adding HTTPS" in `DEPLOY.md`).
 
 The platform-agnostic shape, if you're deploying somewhere other than
 that Docker/EC2 path:
