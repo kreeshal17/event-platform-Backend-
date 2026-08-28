@@ -20,6 +20,10 @@ needed). API root is at `https://events-platform.duckdns.org/api/`. This
 is a personal EC2 box kept up for grading, not a permanent service — see
 "Known limitations / notes" for what it deliberately doesn't do.
 
+> Use the `duckdns.org` link above, not the bare EC2 IP — the Let's
+> Encrypt certificate is issued only for `events-platform.duckdns.org`,
+> so the IP now serves a TLS certificate mismatch instead of the app.
+
 ## Architecture summary
 
 **Apps.** Four Django apps under `apps/`, each with a clear boundary:
