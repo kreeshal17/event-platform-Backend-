@@ -14,6 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
     DJANGO_DEBUG=(bool, False),
     DJANGO_TESTING=(bool, False),
+    DJANGO_USE_HTTPS=(bool, False),
 )
 # Read .env from the project root if present. In real deployments the
 # environment is expected to be provided by the platform instead.
@@ -33,6 +34,25 @@ SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env("DJANGO_DEBUG")
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+
+# Off by default (plain-HTTP EC2 deployment, and local dev/tests). Set
+# DJANGO_USE_HTTPS=True only once a TLS-terminating reverse proxy (see
+# docker-compose.prod.yml's "caddy" service) is actually in front of this
+# app -- turning this on without one just breaks the site, since every
+# request would get redirected to an https:// URL nothing is serving.
+USE_HTTPS = env("DJANGO_USE_HTTPS")
+if USE_HTTPS:
+    # Caddy (or any reverse proxy) sets this header on the request it
+    # forwards to Django; without telling Django to trust it, Django has
+    # no way to know the original request to the proxy was HTTPS, and
+    # request.is_secure() would always report False.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30  # 30 days; raise once confident TLS stays up
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
 
 # Application definition

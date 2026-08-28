@@ -670,15 +670,19 @@ python manage.py collectstatic --noinput   # populates STATIC_ROOT for WhiteNois
 gunicorn config.wsgi:application --bind 0.0.0.0:$PORT   # never runserver in production
 ```
 
-**Not configured here, on purpose — depends on your TLS setup**:
-`python manage.py check --deploy` flags `SECURE_HSTS_SECONDS`,
-`SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, and `CSRF_COOKIE_SECURE`.
-All four are about HTTPS enforcement, and the right values depend on where
-SSL is actually terminated (this app directly, vs. a load balancer/reverse
-proxy in front of it, which would also need `SECURE_PROXY_SSL_HEADER` set
-to match). Hardcoding them without knowing that would either do nothing
-or break local/non-HTTPS testing, so this is flagged as a real gap to
-close before serving real traffic, not silently decided here.
+**HTTPS: off by default, one env var away.** `python manage.py check
+--deploy` flags `SECURE_HSTS_SECONDS`, `SECURE_SSL_REDIRECT`,
+`SESSION_COOKIE_SECURE`, and `CSRF_COOKIE_SECURE` — all four are about
+HTTPS enforcement, and hardcoding them on without a TLS terminator in
+front would just break local/non-HTTPS testing. So they're gated behind
+a single `DJANGO_USE_HTTPS` flag (`config/settings.py`) instead of
+either being silently on or silently missing: set it to `True` (plus
+`SECURE_PROXY_SSL_HEADER`, which is set automatically alongside it) once
+a real reverse proxy is terminating TLS in front of this app. The AWS
+deployment ships exactly that reverse proxy — `docker-compose.prod.yml`
+has an optional `caddy` service that gets a free, auto-renewing Let's
+Encrypt certificate; see `DEPLOY.md`'s "Adding HTTPS" section for the
+concrete steps.
 
 ## Running tests
 
@@ -747,12 +751,14 @@ In rough priority order:
    (`SearchVector`/`SearchQuery`) would make `q` scale past a small demo
    dataset. Deliberately left out to keep the schema compact, per the
    brief.
-3. **HTTPS in front of the AWS deployment.** `DEPLOY.md`'s EC2 setup
-   serves plain HTTP. The next step is either an Application Load
-   Balancer with an ACM certificate, or Caddy as a reverse proxy on the
-   instance itself — and only then turning on the HSTS/secure-cookie
-   settings that `manage.py check --deploy` already flags as currently
-   (correctly) unset.
+3. ~~**HTTPS in front of the AWS deployment.**~~ Done — see
+   `docker-compose.prod.yml`'s `caddy` service and `DEPLOY.md`'s "Adding
+   HTTPS" section: a free, auto-renewing Let's Encrypt certificate via
+   Caddy as a reverse proxy, gated behind `DJANGO_USE_HTTPS` in
+   `config/settings.py`. What's still a fair improvement on top of this:
+   an AWS Application Load Balancer with an ACM certificate instead,
+   which would also enable health-check-based instance replacement —
+   overkill for a single box, worth it once this runs more than one.
 4. **CI.** There's no GitHub Actions workflow running the test suite on
    push yet — everything's been verified by running the suite locally
    against real Postgres/Redis before every commit, but that's a manual

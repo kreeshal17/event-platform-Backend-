@@ -93,18 +93,52 @@ docker compose -f docker-compose.prod.yml up -d --build
 Postgres/Redis data persists in named volumes across this — only the
 `web` image gets rebuilt and its container replaced.
 
+## Adding HTTPS
+
+Free, automatic, via [Caddy](https://caddyserver.com/) as a reverse
+proxy in front of `web` — it requests and renews a real Let's Encrypt
+certificate itself, no certbot cron job to maintain. Two prerequisites:
+
+- A domain name that already resolves (an A record) to this instance's
+  public IP — e.g. a free [DuckDNS](https://www.duckdns.org) subdomain.
+  Let's Encrypt cannot issue a certificate for a bare IP address.
+- Port 443 open inbound in the EC2 security group (80 needs to already
+  be open — Let's Encrypt's HTTP-01 challenge and the automatic
+  HTTP→HTTPS redirect both use it).
+
+Then, on the instance:
+
+```bash
+nano .env
+```
+
+Set:
+
+```
+DJANGO_USE_HTTPS=True
+DJANGO_CSRF_TRUSTED_ORIGINS=https://your-domain.duckdns.org
+CADDY_DOMAIN=your-domain.duckdns.org
+DJANGO_ALLOWED_HOSTS=<existing value>,your-domain.duckdns.org
+```
+
+Then bring up the full stack including the `caddy` service:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+The first request to `https://your-domain.duckdns.org` triggers Caddy's
+certificate request — check `docker compose -f docker-compose.prod.yml
+logs caddy` if it doesn't come up within a few seconds. Once it's live,
+plain `http://` requests auto-redirect to `https://`.
+
 ## What this setup does NOT do (known, deliberate gaps)
 
-- **No HTTPS.** Traffic is plain HTTP on port 80. For real use, put
-  something in front that terminates TLS: either an AWS Application Load
-  Balancer with an ACM certificate (targeting this instance), or a
-  reverse proxy on the box itself — [Caddy](https://caddyserver.com/) is
-  the simplest option, automatic Let's Encrypt certs in about 10 lines
-  of config. Once there's real HTTPS in front, revisit
-  `manage.py check --deploy`'s HSTS/`SECURE_SSL_REDIRECT`/secure-cookie
-  warnings (see README "Deployment") — they're intentionally unset right
-  now specifically because they'd be wrong without HTTPS already in
-  place.
+- **HTTPS is optional, not on by default.** Plain HTTP on port 80 works
+  out of the box with no domain needed. Real HTTPS via a free Let's
+  Encrypt certificate is one config change away — see "Adding HTTPS"
+  below — but needs a domain name pointing at this instance first
+  (Let's Encrypt won't issue a certificate for a bare IP).
 - **Single instance — no auto-scaling or failover.** Fine for a demo;
   anything real would want the database on RDS (durable, backed up,
   independent of the app instance's own lifecycle) and the app behind an

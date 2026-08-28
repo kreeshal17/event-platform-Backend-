@@ -44,9 +44,35 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Not published to the host directly -- only "caddy" reaches this,
+    # over the internal compose network, on the plain-HTTP port gunicorn
+    # listens on. This is what makes Caddy a real TLS-terminating proxy
+    # rather than a second, redundant way in.
+    expose:
+      - "8000"
+
+  # Reverse proxy + automatic free TLS via Let's Encrypt. Caddy requests
+  # and renews the certificate itself (no certbot cron job to maintain)
+  # as long as CADDY_DOMAIN in .env is a real domain pointing at this
+  # host's public IP and ports 80/443 are reachable from the internet --
+  # both are required for Let's Encrypt's HTTP-01 challenge to succeed.
+  caddy:
+    image: caddy:2-alpine
+    container_name: events_platform_caddy
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - web
     ports:
-      - "80:8000"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - events_platform_caddy_data:/data
+      - events_platform_caddy_config:/config
 
 volumes:
   events_platform_pgdata:
   events_platform_redisdata:
+  events_platform_caddy_data:
+  events_platform_caddy_config:

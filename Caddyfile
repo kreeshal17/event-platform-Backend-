@@ -1,0 +1,7 @@
+{$CADDY_DOMAIN} {
+	# Caddy automatically requests, installs, and renews a free
+	# Let's Encrypt certificate for {$CADDY_DOMAIN} the first time this
+	# starts, as long as that domain's DNS points at this host and ports
+	# 80/443 are reachable from the internet -- no other setup needed.
+	reverse_proxy web:8000
+}
