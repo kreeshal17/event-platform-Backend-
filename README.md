@@ -12,6 +12,13 @@ enrollment lifecycle (both concurrency-safe and history-preserving — see
 format, demo seed data, and a Postman collection all exist and are
 tested against real PostgreSQL (+ Redis for cache/throttling).
 
+**Live demo:** deployed on a single AWS EC2 instance —
+[http://32.237.58.194/static/demo/index.html](http://32.237.58.194/static/demo/index.html)
+(the demo frontend; use either seeded demo account button, no signup
+needed). API root is at `http://32.237.58.194/api/`. This is a personal
+EC2 box kept up for grading, not a permanent service — see "Known
+limitations / notes" for what it deliberately doesn't do (HTTPS, etc.).
+
 ## Architecture summary
 
 **Apps.** Four Django apps under `apps/`, each with a clear boundary:
@@ -421,6 +428,25 @@ capacity. Phase 6's naive first version (counted active rows, no lock) is
 the subject of a full red→green writeup in `DEBUGGING.md`, including the
 actual race numbers it produced.
 
+Real output from re-running that test against a fresh Postgres, captured
+on 2026-08-28 (no screenshot — this is the actual terminal output, which
+proves the same thing a screenshot would and stays copy-pasteable):
+
+```
+$ python manage.py test apps.enrollments.tests.test_concurrency -v 2
+Creating test database for alias 'default' ('test_events_db')...
+...
+System check identified no issues (0 silenced).
+test_exactly_one_of_five_concurrent_enrolls_succeeds_on_the_last_seat
+(apps.enrollments.tests.test_concurrency.ConcurrentEnrollmentTests...) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 2.918s
+
+OK
+Destroying test database for alias 'default' ('test_events_db')...
+```
+
 Deployed instances with pre-existing `Enrollment` data get `seats_taken`
 backfilled from the real active-enrollment count by a data migration
 (`enrollments/migrations/0002_backfill_seats_taken.py`) before this
@@ -621,6 +647,11 @@ managed services instead of one box running the compose file this
 project already has). Every step in it — build, migrate, collectstatic,
 `seed_demo`, the actual HTTP requests — was run for real against an
 isolated container stack before being written down, not just described.
+This isn't just a walkthrough that was followed once and abandoned —
+it's what's actually running at
+[http://32.237.58.194/static/demo/index.html](http://32.237.58.194/static/demo/index.html)
+right now, on a real EC2 instance in `ap-southeast-2`, seeded with the
+same `seed_demo` data described above.
 
 The platform-agnostic shape, if you're deploying somewhere other than
 that Docker/EC2 path:
