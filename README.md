@@ -12,6 +12,67 @@ enrollment lifecycle (both concurrency-safe and history-preserving — see
 format, demo seed data, and a Postman collection all exist and are
 tested against real PostgreSQL (+ Redis for cache/throttling).
 
+## Architecture summary
+
+**Apps.** Four Django apps under `apps/`, each with a clear boundary:
+
+- `accounts` — `Profile` (role + verification state, one-to-one on the
+  default `User`), `EmailOTP`, and everything auth: signup, verify,
+  resend, login, refresh. `otp.py` (generation/hashing), `services.py`
+  (the actual business logic — `verify_email`, `authenticate_and_issue_tokens`,
+  `resend_otp`), `views.py` (thin HTTP wrappers around the services)
+  are deliberately separate files, so the business logic is testable and
+  readable independent of the HTTP layer.
+- `events` — the `Event` model (with its three `CheckConstraint`s and
+  three indexes), facilitator CRUD, role/ownership permissions, and
+  discovery filtering (`filters.py`).
+- `enrollments` — the `Enrollment` model (partial unique constraint —
+  see "Enrollment" below), `services.py` (`enroll_seeker`/
+  `cancel_enrollment` — the concurrency-safe versions, see
+  `DEBUGGING.md` for the naive version this replaced), and the
+  seeker-facing enrollment listing.
+- `common` — shared, HTTP-layer-independent pieces: the coded API
+  exceptions (`exceptions.py`) and the global exception handler
+  (`exception_handlers.py`) that normalizes DRF's own built-in error
+  shapes to match them, plus the `seed_demo` management command and the
+  single-file demo frontend (`static/demo/index.html`).
+
+**Request flow.** Every authenticated request carries a SimpleJWT bearer
+token (`JWTAuthentication`, configured globally). DRF's
+`ScopedRateThrottle` sits in front of signup/login/resend-otp, backed by
+Redis so the limit is shared across processes, not per-worker. Every
+error response — whether raised explicitly by application code
+(`apps.common.exceptions`, which already render as `{"detail", "code"}`
+by construction) or one of DRF's own built-ins (`ValidationError`,
+`NotFound`, `Throttled`, ...) — passes through one global exception
+handler that guarantees the same `{"detail", "code"}` shape everywhere,
+so no endpoint has a bespoke error format.
+
+**Where correctness actually lives**, the three mechanisms worth knowing
+about before reading the code:
+
+1. **`LOWER(email)` uniqueness** is a raw-SQL partial unique index
+   (`RunSQL` migration), not a Django-level check — `User.email` isn't
+   unique by default, and a naive unique index would break
+   `createsuperuser`'s emailless accounts. `WHERE email <> ''` is the
+   fix.
+2. **Enrollment history** never gets deleted or mutated backward: a
+   `UniqueConstraint` on `(event, seeker)` with `condition=Q(status=
+   "enrolled")` allows unlimited canceled rows but at most one active
+   one — so "enroll → cancel → enroll again" always creates a genuinely
+   new row rather than reviving the canceled one (Challenge B).
+3. **Capacity under concurrency** is `transaction.atomic()` +
+   `Event.objects.select_for_update()`, checked against a maintained
+   `seats_taken` counter rather than a live `COUNT` — the naive
+   count-based version that Phase 6 briefly shipped, the real race it
+   produced under genuine concurrent load, and the fix are documented in
+   full in `DEBUGGING.md` (Challenge A).
+
+**Deployment.** WhiteNoise lets the same Django process serve both the
+API and the static demo frontend in production, not just under
+`runserver` — see "Deployment" below and `DEPLOY.md` for the tested,
+containerized single-EC2-instance path.
+
 ## Stack
 
 - Django 4.2, Django REST Framework
@@ -638,3 +699,44 @@ namespaced (`apps.accounts`, ...).
   context.
 - Further limitations will be added here as later phases introduce the
   behaviour they apply to.
+
+## What I'd improve with another day
+
+In rough priority order:
+
+1. **Facilitator attendee visibility.** Right now a facilitator sees
+   `enrolled_count` for their own event but not *who* enrolled — that's
+   deliberate, matching the spec's "view own event enrollment counts"
+   exactly (not identities), but it's the first thing a real facilitator
+   would ask for. A well-scoped addition: a
+   `GET /api/events/{id}/enrollments/` endpoint, owner-only, returning
+   seeker emails and enrollment status for that one event.
+2. **`q` search on a real index.** Documented above as a known
+   limitation — `pg_trgm` (GIN index) or Postgres full-text search
+   (`SearchVector`/`SearchQuery`) would make `q` scale past a small demo
+   dataset. Deliberately left out to keep the schema compact, per the
+   brief.
+3. **HTTPS in front of the AWS deployment.** `DEPLOY.md`'s EC2 setup
+   serves plain HTTP. The next step is either an Application Load
+   Balancer with an ACM certificate, or Caddy as a reverse proxy on the
+   instance itself — and only then turning on the HSTS/secure-cookie
+   settings that `manage.py check --deploy` already flags as currently
+   (correctly) unset.
+4. **CI.** There's no GitHub Actions workflow running the test suite on
+   push yet — everything's been verified by running the suite locally
+   against real Postgres/Redis before every commit, but that's a manual
+   discipline, not an enforced one. A workflow spinning up Postgres +
+   Redis service containers and running `manage.py test` on every PR
+   would close that gap, and is a natural precursor to real CI/CD
+   auto-deploy (discussed and deliberately deferred during the AWS
+   setup — see `PROMPT_LOG.md`).
+5. **Move Postgres/Redis off the app instance.** The current AWS
+   deployment runs all three containers on one EC2 box (see
+   `DECISIONS.md` for why, given the project's scale) — RDS +
+   ElastiCache would be the real next step if this needed to survive an
+   instance failure or scale past one box.
+6. **Automated coverage for the demo frontend.** It's been verified
+   manually and via one-off Playwright scripts during development (see
+   `PROMPT_LOG.md`), but there's no repeatable, checked-in browser test
+   for it — low priority, since it's explicitly a developer-facing demo
+   tool, not the graded API surface, but worth having if it grows.
