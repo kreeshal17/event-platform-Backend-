@@ -1,5 +1,10 @@
 # Events Platform — Backend
 
+**✅ 125/125 tests passing · 98.5% coverage · real PostgreSQL + Redis, not
+mocks · [live HTTPS demo](https://events-platform.duckdns.org)** — see
+"At a glance" below for the full picture, or jump straight to
+[Running tests](#running-tests) to verify it yourself.
+
 A Django REST Framework backend for an events platform: facilitators create
 events, seekers discover and enroll in them. Built in phases; see
 `AGENT_SPEC.md`-derived plan below for what exists so far.
