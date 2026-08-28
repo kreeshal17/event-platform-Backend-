@@ -8,6 +8,7 @@ to trigger over real HTTP without extra setup (Throttled).
 
 from datetime import timedelta
 
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -129,3 +130,18 @@ class ExceptionHandlerUnitTests(TestCase):
         # Django's normal 500 handling takes over, same as if this
         # handler didn't exist.
         self.assertIsNone(custom_exception_handler(ValueError("boom"), {}))
+
+    def test_django_permission_denied_normalized(self):
+        # Mirrors test_not_found_normalized's Http404 case, but for
+        # django.core.exceptions.PermissionDenied — nothing in this app
+        # currently raises the *Django* PermissionDenied (view-level
+        # permission checks raise DRF's own, already covered by
+        # test_permission_denied_normalized above), so this branch of
+        # custom_exception_handler had no coverage at all until this
+        # test. It's the exact structural sibling of the Http404 ->
+        # NotFound bug documented in DEBUGGING.md: a transformation DRF's
+        # own default handler does internally, in its own local scope,
+        # that this handler has to replicate explicitly to see it.
+        response = custom_exception_handler(DjangoPermissionDenied("nope"), {})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data, {"detail": "nope", "code": "permission_denied"})

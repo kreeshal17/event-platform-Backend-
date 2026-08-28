@@ -28,8 +28,8 @@ is a personal EC2 box kept up for grading, not a permanent service — see
 
 | | |
 |---|---|
-| Automated tests | 124, all passing against real PostgreSQL + Redis |
-| Test coverage | 98.2% line, `apps/` (measured with `coverage.py` — see "Running tests") |
+| Automated tests | 125, all passing against real PostgreSQL + Redis |
+| Test coverage | 98.5% line, `apps/` (measured with `coverage.py` — see "Running tests") |
 | Concurrency (Challenge A) | Verified with real threads + real Postgres, not simulated — 5 re-runs, no flakiness |
 | Documented decisions | 19, in `DECISIONS.md` |
 | Documented debugging incidents | 6 real ones, in `DEBUGGING.md` |
@@ -719,7 +719,7 @@ python manage.py test
 
 Requires the Postgres server from `docker compose up -d` to be running and
 reachable via the `.env` settings. Does **not** require Redis — see "Redis"
-above. 124 tests, all real (no mocked DB), covering the required
+above. 125 tests, all real (no mocked DB), covering the required
 concurrency test, the re-enrollment lifecycle test, and the OTP edge
 cases (expiry, attempt-limit, resend/invalidation, the exact Challenge C
 scenario — OTP1 requested, OTP2 requested 30s later, OTP1 submitted).
@@ -736,18 +736,23 @@ Real, measured output (`.coveragerc` excludes migrations and the tests
 themselves, so the number reflects application code only):
 
 ```
-TOTAL   601 stmts   6 missed   82 branches   6 partial   98.2% cover
+TOTAL   601 stmts   5 missed   82 branches   5 partial   98.5% cover
 ```
 
 The two files with any gap: `apps/accounts/serializers.py` (2 lines —
 the `IntegrityError` fallback for a signup race on the same email,
 belt-and-suspenders behind the `LOWER(email)` unique index, not
 independently exercised by a dedicated concurrency test the way
-enrollment is) and `apps/common/exception_handlers.py` (its
-`DjangoPermissionDenied` → DRF `PermissionDenied` branch — the direct
-structural sibling of the `Http404` transformation that turned out to
-be buggy, see `DEBUGGING.md` — untested and therefore worth treating as
-open risk, not assumed-fine, until it has its own test).
+enrollment is) and `apps/common/exception_handlers.py` — down to just
+`_flatten_detail()`'s empty-list/empty-dict fallback branches, which
+DRF never actually produces (every real error response has at least one
+message), so untested-but-genuinely-unreachable rather than a real gap.
+That file's more serious gap — the `DjangoPermissionDenied` → DRF
+`PermissionDenied` branch, the exact structural sibling of the
+`Http404` bug documented in `DEBUGGING.md` — had zero coverage until
+this measurement surfaced it; it now has a dedicated test
+(`test_django_permission_denied_normalized`) precisely because that bug
+class already bit this project once.
 
 ## Project layout
 
