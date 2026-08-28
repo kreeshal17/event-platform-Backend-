@@ -24,6 +24,27 @@ is a personal EC2 box kept up for grading, not a permanent service — see
 > Encrypt certificate is issued only for `events-platform.duckdns.org`,
 > so the IP now serves a TLS certificate mismatch instead of the app.
 
+**At a glance**
+
+| | |
+|---|---|
+| Automated tests | 124, all passing against real PostgreSQL + Redis |
+| Test coverage | 98.2% line, `apps/` (measured with `coverage.py` — see "Running tests") |
+| Concurrency (Challenge A) | Verified with real threads + real Postgres, not simulated — 5 re-runs, no flakiness |
+| Documented decisions | 19, in `DECISIONS.md` |
+| Documented debugging incidents | 6 real ones, in `DEBUGGING.md` |
+| Live deployment | Real AWS EC2 + Docker, real HTTPS (free Let's Encrypt cert) |
+| AI supervision record | `PROMPT_LOG.md` — 17 material prompts, 4 real implementation defects found and fixed, 2 fabrication requests declined |
+
+**Contents:** [Architecture](#architecture-summary) ·
+[Stack](#stack) · [Setup](#setup) · [API](#api) ·
+[Environment variables](#environment-variables) ·
+[Demo data](#demo-data) · [Demo frontend](#demo-frontend) ·
+[Deployment](#deployment) · [Running tests](#running-tests) ·
+[Project layout](#project-layout) ·
+[Known limitations](#known-limitations--notes) ·
+[What I'd improve](#what-id-improve-with-another-day)
+
 ## Architecture summary
 
 **Apps.** Four Django apps under `apps/`, each with a clear boundary:
@@ -698,7 +719,35 @@ python manage.py test
 
 Requires the Postgres server from `docker compose up -d` to be running and
 reachable via the `.env` settings. Does **not** require Redis — see "Redis"
-above.
+above. 124 tests, all real (no mocked DB), covering the required
+concurrency test, the re-enrollment lifecycle test, and the OTP edge
+cases (expiry, attempt-limit, resend/invalidation, the exact Challenge C
+scenario — OTP1 requested, OTP2 requested 30s later, OTP1 submitted).
+
+### Coverage
+
+```bash
+pip install -r requirements-dev.txt   # adds coverage.py on top of requirements.txt
+coverage run manage.py test
+coverage report -m
+```
+
+Real, measured output (`.coveragerc` excludes migrations and the tests
+themselves, so the number reflects application code only):
+
+```
+TOTAL   601 stmts   6 missed   82 branches   6 partial   98.2% cover
+```
+
+The two files with any gap: `apps/accounts/serializers.py` (2 lines —
+the `IntegrityError` fallback for a signup race on the same email,
+belt-and-suspenders behind the `LOWER(email)` unique index, not
+independently exercised by a dedicated concurrency test the way
+enrollment is) and `apps/common/exception_handlers.py` (its
+`DjangoPermissionDenied` → DRF `PermissionDenied` branch — the direct
+structural sibling of the `Http404` transformation that turned out to
+be buggy, see `DEBUGGING.md` — untested and therefore worth treating as
+open risk, not assumed-fine, until it has its own test).
 
 ## Project layout
 

@@ -1,0 +1,4 @@
+# Dev/CI-only tooling -- not needed at runtime, so kept out of
+# requirements.txt (what actually ships in the Docker image).
+-r requirements.txt
+coverage>=7.4,<8.0
