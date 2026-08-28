@@ -634,3 +634,60 @@ One extra serializer class for what's "just" filtering. In exchange,
 malformed input to `GET /api/events/` fails the same predictable way as
 malformed input to every `POST`/`PATCH` endpoint in this project, instead
 of being a special case that could 500.
+
+## Decision: AWS deployment target — EC2 + Docker Compose, not App Runner
+
+### Problem / Ambiguity
+
+The project needed to actually run somewhere on AWS, not just have
+deployment artifacts sitting unused in the repo. AWS offers several ways
+to run a containerized web app, and they differ a lot in how much
+AWS-specific infrastructure they require versus how much they let this
+project reuse what already existed (a working `docker-compose.yml`
+running the app, Postgres, and Redis together).
+
+### Options Considered
+
+- **AWS App Runner** — the simplest-looking option on paper: point it at
+  a container image or a GitHub repo and it builds, deploys, scales, and
+  load-balances automatically, with very little AWS configuration to
+  write by hand.
+- **ECS Fargate** — the "real" production container platform on AWS:
+  most powerful, but also the most setup (task definitions, a cluster,
+  an Application Load Balancer, VPC configuration).
+- **Elastic Beanstalk** — also managed, AWS-native, a middle ground
+  between App Runner and doing everything by hand.
+- **A single EC2 instance running Docker Compose** — full manual
+  control, but able to run the *entire* stack (app + Postgres + Redis)
+  as one thing, the same shape as local dev already used.
+
+### Choice
+
+A single EC2 instance running `docker-compose.prod.yml` (app + Postgres
++ Redis, three containers, one box). App Runner was the initial idea,
+but it was rejected for a specific, concrete reason once examined
+closely: **App Runner only runs the web container.** It has no way to
+run Postgres or Redis alongside it — those would need to move to RDS and
+ElastiCache, both provisioned separately, both inside a VPC, with a VPC
+connector configured so App Runner could reach them. That's three managed
+AWS services plus networking configuration to set up and pay for,
+instead of one EC2 box running (almost exactly) the compose file this
+project already had and had already tested locally. ECS Fargate and
+Elastic Beanstalk were not seriously pursued for the same underlying
+reason — they're all heavier than a single-instance Docker Compose setup
+for a project of this size, and none of them make the database/cache
+placement question go away the way "one box running Compose" does.
+
+### Trade-off
+
+A single EC2 instance has no auto-scaling, no automatic failover, and
+puts Postgres/Redis on the same box as the app — if that instance goes
+down, everything goes down together, and there's no managed backup
+strategy the way RDS would provide. This is a real, acknowledged
+limitation for anything beyond a demo/grading deployment (documented
+explicitly in `DEPLOY.md`'s "What this setup does NOT do" section). In
+exchange, the entire deployment is one instance, one compose file, and
+zero additional AWS services to provision, configure, or pay for beyond
+compute — a deliberately minimal footprint that matches the scale of
+this project, with a clear, named path (RDS + ElastiCache + a
+multi-instance setup) to grow into if that's ever actually needed.
