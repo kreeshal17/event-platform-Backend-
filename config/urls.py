@@ -16,10 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from apps.events.views import FacilitatorEventListView
 
 urlpatterns = [
+    # So the bare domain/IP takes you straight to the demo page instead
+    # of a 404 -- purely a convenience redirect, no new functionality.
+    path('', RedirectView.as_view(url='/static/demo/index.html', permanent=False)),
     path('admin/', admin.site.urls),
     path('api/auth/', include('apps.accounts.urls')),
     # Registered before api/events/ only for readability; the two paths
